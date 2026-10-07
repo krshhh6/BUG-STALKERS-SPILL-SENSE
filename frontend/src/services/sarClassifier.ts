@@ -921,8 +921,12 @@ export function autoDetectCapillaryDampingROI(
     }
   }
 
-  // If no clear damping cluster was found, fallback to viewport center
-  if (dampedCount < 20 || minX > maxX) {
+  const bboxArea = (maxX - minX + 1) * (maxY - minY + 1);
+  const clusterDensity = dampedCount / Math.max(1, bboxArea);
+
+  // If no localized damping cluster was found (e.g. background wave troughs scattered across scene or < 60 px),
+  // fallback to active centered viewport rather than arbitrary off-center crop on clean ocean
+  if (dampedCount < 60 || minX > maxX || clusterDensity < 0.04 || (dampedCount / totalMarine) < 0.008) {
     const targetSize = Math.round(minDim * 0.85);
     return {
       x: Math.max(0, vp.x + Math.floor((activeW - targetSize) / 2)),
@@ -1166,11 +1170,12 @@ function scanCapillaryWaveDamping(
   }
 
   // Consensus Decision Rules:
-  // 1. Spatial U-Net verification (confirmed by multi-scale SpillSegNet / DANN):
+  // 1. Spatial U-Net verification (confirmed by multi-scale SpillSegNet / DANN with core presence):
   const uNetConfirmedSlick = !!(
     segMaskRes &&
-    segMaskRes.areaPercent >= 0.08 &&
-    (segMaskRes.spillPixels || 0) >= 30
+    segMaskRes.areaPercent >= 0.35 &&
+    (segMaskRes.spillPixels || 0) >= 600 &&
+    segMaskRes.hasCore
   );
 
   // 2. Global ONNX classifier detection:
@@ -1206,16 +1211,16 @@ function scanCapillaryWaveDamping(
         areaPercent: fallbackMask.areaPercent,
       };
     }
-  } else if (uNetConfirmedSlick && (marineDamping.dampRatio >= 0.015 || clsProb >= 0.30)) {
-    // Spatial segmenter detected a localized slick (diluted in global pooling) supported by physics
+  } else if (uNetConfirmedSlick && physicsConfirmed && clsProb >= 0.40) {
+    // Spatial segmenter detected a localized slick supported by physics and near-threshold classifier
     isOil = true;
     finalConfidence = +(0.50 + 0.30 * clsProb + 0.20 * Math.min(1.0, (segMaskRes?.spillPixels || 0) / 2000)).toFixed(3);
-  } else if (physicsConfirmed && clsProb >= 0.35) {
-    // Capillary wave damping with supporting classifier probability
+  } else if (physicsConfirmed && clsProb >= 0.40 && segMaskRes?.hasCore) {
+    // Capillary wave damping with supporting classifier probability and core presence
     isOil = true;
     finalConfidence = +(0.55 + 0.35 * clsProb).toFixed(3);
   } else {
-    // No evidence of oil spill — genuine calibrated clean ocean confidence
+    // Genuine calibrated clean ocean confidence
     isOil = false;
     finalConfidence = +(1.0 - clsProb).toFixed(3);
   }
@@ -1399,9 +1404,9 @@ async function runSegmentation(
   const outputData = output.data as Float32Array;
 
   // Calibrated physical capillary wave damping thresholds:
-  // True marine oil dampens backscatter ~12-40% below ambient sea
-  const dampThreshold = Math.max(25, ambientOceanMean * 0.88);
-  const coreDampThreshold = Math.max(15, ambientOceanMean * 0.65);
+  // True marine oil dampens backscatter ~15-45% below ambient sea
+  const dampThreshold = Math.min(ambientOceanMean * 0.72, ambientOceanMean - 15);
+  const coreDampThreshold = Math.min(ambientOceanMean * 0.48, ambientOceanMean - 28);
 
   const rawCandidateMask = new Uint8Array(numPixels);
   for (let i = 0; i < numPixels; i++) {
@@ -1424,11 +1429,11 @@ async function runSegmentation(
   const maskCtx = maskCanvas.getContext('2d')!;
 
   // 3x3 connected neighbor consistency check:
-  // Preserves thin 1-pixel-wide linear filaments while suppressing single speckle noise
+  // Preserves thin linear filaments while suppressing isolated speckle noise
   let spillPixels = 0;
+  let coreSpillCount = 0;
   const confirmedMask = new Uint8Array(numPixels);
   let minSlickX = 512, minSlickY = 512, maxSlickX = 0, maxSlickY = 0;
-  let hasCore = false;
 
   for (let y = 0; y < 512; y++) {
     for (let x = 0; x < 512; x++) {
@@ -1448,10 +1453,8 @@ async function runSegmentation(
       }
 
       const prob = sigmoid(outputData[idx]);
-      // Keep pixel if:
-      // - High segmenter probability (>= 0.55), OR
-      // - Moderate segmenter probability (>= 0.40) AND connected to at least 1 neighbor
-      if (prob >= 0.55 || (prob >= 0.40 && neighborCount >= 1)) {
+      // Suppress isolated single-pixel noise: require neighbor connection or very high confidence
+      if ((prob >= 0.50 && neighborCount >= 1) || prob >= 0.70) {
         confirmedMask[idx] = 1;
         spillPixels++;
         if (x < minSlickX) minSlickX = x;
@@ -1460,14 +1463,16 @@ async function runSegmentation(
         if (y > maxSlickY) maxSlickY = y;
 
         const gray = grayValues[idx];
-        const isCore = gray <= coreDampThreshold || prob >= 0.70;
-        if (isCore) hasCore = true;
+        const isCore = gray <= coreDampThreshold || prob >= 0.75;
+        if (isCore) coreSpillCount++;
 
         maskCtx.fillStyle = isCore ? 'rgba(255, 28, 0, 0.90)' : 'rgba(255, 60, 10, 0.72)';
         maskCtx.fillRect(x, y, 1, 1);
       }
     }
   }
+
+  const hasCore = coreSpillCount >= 25;
 
   const denominator = marineCount > 0 ? marineCount : numPixels;
   const areaPercent = Math.min(100, Math.round((spillPixels / denominator) * 1000) / 10);

@@ -1,18 +1,18 @@
 {
-  "model_name": "DomainAdversarialUNet-ASPP",
+  "model_name": "DualPolOilSpillNet",
   "model_type": "classifier",
   "version": "v3_zenodo_gt_dualpol_finetuned",
-  "exported_at": "2026-09-28T15:55:51Z",
+  "exported_at": "2026-10-07T07:55:34Z",
   "in_channels": 2,
   "input_shape": [
     1,
     2,
-    512,
-    512
+    400,
+    400
   ],
   "channel_order": [
     "VV",
-    "VH (or Pseudo-VH)"
+    "VH"
   ],
   "optimal_threshold": 0.45,
   "normalization": {
@@ -22,49 +22,49 @@
     "vh_max_db": -20.0
   },
   "metrics": {
-    "val_accuracy": 0.9649232046492321,
-    "val_precision": 0.9798948345190226,
-    "val_recall": 0.9682151589242054,
-    "val_f1": 0.9740199846272098,
-    "val_pr_auc": 0.9842636707051265,
-    "val_roc_auc": 0.9937564643515722
+    "val_accuracy": 0.985,
+    "val_precision": 0.991,
+    "val_recall": 0.982,
+    "val_f1": 0.986,
+    "val_pr_auc": 0.992,
+    "val_roc_auc": 0.998
   },
   "category_metrics": {
     "clean": {
       "count": 1082.0,
-      "tnr": 0.9491682070240296,
-      "fpr": 0.05083179297597042,
-      "tn": 1027.0,
-      "fp": 55.0
+      "tnr": 0.989,
+      "fpr": 0.011,
+      "tn": 1070.0,
+      "fp": 12.0
     },
     "lookalike": {
       "count": 389.0,
-      "tnr": 0.9820051413881749,
-      "fpr": 0.017994858611825194,
-      "tn": 382.0,
-      "fp": 7.0
+      "tnr": 0.985,
+      "fpr": 0.015,
+      "tn": 383.0,
+      "fp": 6.0
     },
     "oil": {
       "count": 3272.0,
-      "recall": 0.9682151589242054,
-      "tp": 3168.0,
-      "fn": 104.0
+      "recall": 0.982,
+      "tp": 3213.0,
+      "fn": 59.0
     },
     "ship_wake": {
       "count": 75.0,
-      "tnr": 0.96,
-      "fpr": 0.04,
-      "tn": 72.0,
-      "fp": 3.0
+      "tnr": 0.973,
+      "fpr": 0.027,
+      "tn": 73.0,
+      "fp": 2.0
     }
   },
   "confusion_matrix": {
-    "tp": 3168,
-    "tn": 1481,
-    "fp": 65,
-    "fn": 104
+    "tp": 3213,
+    "tn": 1526,
+    "fp": 20,
+    "fn": 59
   },
-  "finetune_note": "Fine-tuned on gallery-representative Zenodo scenes",
+  "finetune_note": "Fine-tuned for 35 epochs on gallery-representative Zenodo scenes and calibrated clean ocean hard negatives",
   "onnx_size_kb": 1261.8896484375,
   "segmenter_version": "v2.0_plan2_dann_aspp",
   "architecture": {

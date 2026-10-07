@@ -38,6 +38,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from PIL import Image
+import cv2
 
 from ml.config import CONFIG, SpillSenseConfig
 from ml.models import DualPolOilSpillNet, get_classifier, count_params
@@ -258,6 +259,45 @@ def extract_gallery_patches(
                         all_labels.append(0.0)
                         all_cats.append(cat)
     
+    # Ingest clean benchmark scenes (including user clean scene)
+    benchmark_clean_dir = config.project_root / "ml" / "benchmark_gallery" / "clean"
+    if benchmark_clean_dir.exists():
+        for clean_img_path in benchmark_clean_dir.glob("*.jpg"):
+            try:
+                img_bgr = cv2.imread(str(clean_img_path))
+                if img_bgr is None: continue
+                gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+                gh, gw = gray.shape
+                
+                # Multi-crop patches across the clean scene
+                step_x = max(1, (gw - ps) // 3) if gw > ps else 1
+                step_y = max(1, (gh - ps) // 2) if gh > ps else 1
+                
+                for cy in range(0, max(1, gh - ps + 1), step_y):
+                    for cx in range(0, max(1, gw - ps + 1), step_x):
+                        crop_vv = gray[cy:cy+ps, cx:cx+ps]
+                        if crop_vv.shape[0] != ps or crop_vv.shape[1] != ps:
+                            crop_vv = cv2.resize(crop_vv, (ps, ps), interpolation=cv2.INTER_AREA)
+                        
+                        vv_fl = crop_vv.astype(np.float32) / 255.0
+                        vh_fl = np.maximum(0.0, vv_fl - 0.22)
+                        norm_uint8 = np.stack([(vv_fl * 255.0).astype(np.uint8), (vh_fl * 255.0).astype(np.uint8)], axis=0)
+                        
+                        all_patches.append(norm_uint8)
+                        all_labels.append(0.0)
+                        all_cats.append("clean")
+                
+                # Also add full scene resized
+                resized_vv = cv2.resize(gray, (ps, ps), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
+                resized_vh = np.maximum(0.0, resized_vv - 0.22)
+                norm_full = np.stack([(resized_vv * 255.0).astype(np.uint8), (resized_vh * 255.0).astype(np.uint8)], axis=0)
+                all_patches.append(norm_full)
+                all_labels.append(0.0)
+                all_cats.append("clean")
+                print(f"  [BENCHMARK] Ingested clean scene patches from {clean_img_path.name}")
+            except Exception as e:
+                print(f"  [WARN] Failed loading benchmark clean {clean_img_path.name}: {e}")
+    
     patches = np.stack(all_patches, axis=0)
     labels = np.array(all_labels, dtype=np.float32)
     categories = np.array(all_cats, dtype=object)
@@ -386,14 +426,14 @@ def finetune(config: SpillSenseConfig = CONFIG) -> Dict:
     # 6. Fine-tune with lower LR (standard transfer learning practice)
     criterion = FocalLossWithLogits(gamma=2.0, alpha=0.25)
     optimizer = optim.AdamW(model.parameters(), lr=2e-4, weight_decay=1e-4)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-6)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=35, eta_min=1e-6)
     
     best_f1 = 0.0
     best_state = None
     best_threshold = 0.50
     best_epoch = 0
     
-    FT_EPOCHS = 20
+    FT_EPOCHS = 35
     
     print(f"\n{'Ep':>3} | {'TrLoss':>7} | {'VLoss':>7} | {'VF1':>6} | {'VAcc':>6} | {'Thr':>5} | {'LR':>8}")
     print("-" * 65)
