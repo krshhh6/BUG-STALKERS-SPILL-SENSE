@@ -1,8 +1,9 @@
 # SpillSense (SIH-26143) — Unresolved Items & Blockers Catalog
 
-**Audit Timestamp:** October 14, 2026  
+**Audit Timestamp:** October 14, 2026 (Updated: 23:55 UTC+5:30)  
 **Auditor:** Team BUG STALKERS / Antigravity AI Engineering Pair  
-**Branch:** `main` (commit `aad3a10`)
+**Branch:** `main` (commit `e0d6661`)  
+**Publication Verdict:** READY WITH DOCUMENTED LIMITATIONS
 
 ---
 
@@ -17,11 +18,13 @@ This document records all genuine technical and data blockers that cannot be sol
 - **Item:** Independent test set archive `02_Test_images_and_ground_truth.7z` from Zenodo Record `13761290`.
 - **Expected Archive Size:** 9,859,650,011 bytes (9.86 GB).
 - **Expected MD5 Checksum:** `5dce64cd7ff9d80189d13504bd3bcbf5`.
-- **Current Status:**
+- **Current Status (Verified Live):**
   - Active worker: `task-561` running `ml/scripts/download_part3_resumable.py`.
-  - Progress: **1,298,137,088 bytes (1.30 GB / 13.17%)**.
-  - Current Transfer Rate: ~0.057 MB/s.
-  - Estimated Remaining Duration: **~41.5 hours**.
+  - Progress: **1,484,783,616 bytes (1.48 GB / 15.06%)**.
+  - Current Transfer Rate: ~0.039–0.062 MB/s.
+  - Estimated Remaining Duration: **~50–60 hours**.
+  - Partial File: `D:\Test\02_Test_images_and_ground_truth.7z.part`.
+  - Resumption Capability: Verified via HTTP `Range: bytes=...` (HTTP 206 Partial Content).
 - **Impact on Release:**
   - The candidate classifier checkpoint (`best_dualpol_classifier_exp2_sampling_sw30.pt`) cannot be evaluated on the independent test set until the archive has completely downloaded and its MD5 verified.
   - Evaluation harness `ml/scripts/evaluate_part3_independent.py` is fully prepared and dry-run verified; it will execute immediately once the archive extracts.
@@ -46,7 +49,8 @@ This document records all genuine technical and data blockers that cannot be sol
   - Fabricating synthetic wake masks or substituting clean-ocean scenes for ship wakes would invalidate scientific integrity.
   - **Part III alone cannot satisfy Gate 2.**
 - **Resolution Path:**
-  - Construct a dedicated, independently published Sentinel-1 Ship-Wake Challenge Dataset by pairing Sentinel-1 IW GRD acquisitions with verified terrestrial/satellite AIS vessel tracks.
+  - A formal reproducible specification has been established in [`ml/reports/final_model_audit/ship_wake_validation_specification.md`](file:///d:/Spill%20Sense/SIH-26143-OIL-Spill/ml/reports/final_model_audit/ship_wake_validation_specification.md).
+  - Construct and annotate the dedicated 300-scene challenge set pairing Sentinel-1 IW GRD acquisitions with verified terrestrial/satellite AIS tracks.
   - Evaluate both baseline ($\tau=0.49$) and candidate ($\tau=0.43$) on this separate wake dataset to measure independent ship-wake FPR.
 
 ---

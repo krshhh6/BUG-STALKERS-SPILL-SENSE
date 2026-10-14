@@ -1,0 +1,117 @@
+{
+  "audit_phase": "Phase 4 — Classifier Independent Test & Staging Gate",
+  "component": "DualPolOilSpillNet Classifier",
+  "audit_timestamp_utc": "2026-10-14T16:50:00Z",
+  "status": "CANDIDATE_HELD_IN_STAGING",
+  "dataset_readiness_audit": {
+    "target_dataset": "Zenodo Sentinel-1 SAR Oil Spill Dataset — Part III (Test Set)",
+    "zenodo_record_id": 13761290,
+    "concept_record_id": 13761289,
+    "doi": "10.5281/zenodo.13761290",
+    "remote_archive_manifest": [
+      {
+        "filename": "02_Test_images_and_ground_truth.7z",
+        "size_bytes": 9859650011,
+        "size_gb": 9.86,
+        "checksum_md5": "5dce64cd7ff9d80189d13504bd3bcbf5",
+        "download_url": "https://zenodo.org/records/13761290/files/02_Test_images_and_ground_truth.7z?download=1"
+      }
+    ],
+    "local_storage_path": "D:/Test",
+    "download_process_state": {
+      "worker_script": "ml/scripts/download_part3_resumable.py",
+      "process_state": "ACTIVE_STREAMING",
+      "bytes_downloaded": 1251999744,
+      "total_bytes": 9859650011,
+      "percent_complete": 12.7,
+      "speed_mb_s": 0.08,
+      "eta_hours": 30.0,
+      "partial_file": "D:/Test/02_Test_images_and_ground_truth.7z.part",
+      "resumption_verified": true,
+      "competing_workers": 0
+    },
+    "archive_integrity": {
+      "final_archive_exists": false,
+      "checksum_verified": false,
+      "reason": "Download currently in progress at 12.7%. MD5 verification will occur upon completion prior to extraction."
+    }
+  },
+  "ground_truth_limitation_analysis": {
+    "classes_in_zenodo_part3": [
+      "oil",
+      "clean",
+      "lookalike"
+    ],
+    "ship_wake_annotations_present": false,
+    "ship_wake_fpr_measurability": "NOT_MEASURABLE_ON_ZENODO_PART3",
+    "limitation_explanation": "Zenodo Part III contains 450 scenes categorized solely as Oil, Clean, or Look-alike. It lacks ground-truth AIS vessel coordinates and explicit ship-wake masks. Ship-wake FPR cannot be measured on Part III without heuristic synthesis.",
+    "recommendation": "Construct and evaluate a separate labelled ship-wake challenge set using Sentinel-1 acquisitions correlated with verified AIS vessel tracks."
+  },
+  "evidence_partitioning": {
+    "1_independently_reproduced_results": {
+      "component": "SpillSegNet Segmenter",
+      "target": "20 Untouched Full Scenes (val_scenes[21:41], 83.88M pixels)",
+      "baseline_micro_dice": 0.5945,
+      "candidate_micro_dice": 0.8390,
+      "micro_dice_delta": 0.2445,
+      "false_positive_reduction_pct": 79.4,
+      "promotion_status": "APPROVED_AND_DEPLOYED_TO_PRODUCTION"
+    },
+    "2_results_reported_by_earlier_validation_runs": {
+      "component": "DualPolOilSpillNet Classifier",
+      "target": "Curated Validation Cache (cls_val_v3_zenodo_gt_dualpol.npz, 4,818 patches)",
+      "baseline_epoch": 7,
+      "baseline_threshold": 0.49,
+      "baseline_recall": 0.3145,
+      "baseline_f1": 0.4712,
+      "baseline_ship_wake_fpr": 0.3733,
+      "candidate_epoch": 4,
+      "candidate_threshold": 0.43,
+      "candidate_recall": 0.9624,
+      "candidate_f1": 0.9767,
+      "candidate_ship_wake_fpr": 0.0267,
+      "evaluation_type": "VALIDATION_SPLIT_ONLY_NOT_INDEPENDENT_TEST"
+    },
+    "3_metrics_unverified_or_unmeasurable_on_test_data": {
+      "part3_independent_oil_recall": "UNVERIFIED (Awaiting download completion)",
+      "part3_independent_f1": "UNVERIFIED (Awaiting download completion)",
+      "part3_independent_ship_wake_fpr": "NOT_MEASURABLE (Zenodo Part III contains no wake annotations)"
+    }
+  },
+  "promotion_gate_evaluation": {
+    "gate_1_oil_recall_ge_90pct": {
+      "required": 0.9,
+      "measured_on_independent_test": null,
+      "status": "PENDING_DATA",
+      "passed": false
+    },
+    "gate_2_ship_wake_fpr_le_5pct": {
+      "required": 0.05,
+      "measured_on_independent_test": null,
+      "status": "UNMEASURABLE_ON_PART3",
+      "passed": false
+    },
+    "gate_3_overall_f1_ge_95pct": {
+      "required": 0.95,
+      "measured_on_independent_test": null,
+      "status": "PENDING_DATA",
+      "passed": false
+    },
+    "gate_compliance_verdict": "FAIL_GATES_DEFERRED",
+    "promotion_decision": "HOLD_IN_STAGING"
+  },
+  "model_preservation_and_rollback": {
+    "active_production_classifier": {
+      "path": "frontend/public/models/oil_classifier.onnx",
+      "source_checkpoint": "ml/checkpoints/best_dualpol_classifier.pt",
+      "sha256": "262EF1A8D1F3FBCFBBEDBCC67AEE0C3C1FAF5995CC855CF7131D1FD14C78D902",
+      "status": "UNTOUCHED_AND_ACTIVE"
+    },
+    "staged_candidate": {
+      "checkpoint": "ml/checkpoints/best_dualpol_classifier_exp2_sampling_sw30.pt",
+      "sha256": "014D209A19DBD5C42DA275648F8E5BCB748ABCFCB1562B91F0541FBDCCE0653E",
+      "frozen_threshold": 0.43,
+      "status": "FROZEN_IN_STAGING"
+    }
+  }
+}

@@ -1,11 +1,12 @@
 {
   "audit_metadata": {
     "project": "SpillSense (SIH-26143)",
-    "audit_timestamp_utc": "2026-10-14T17:15:00Z",
+    "audit_timestamp_utc": "2026-10-14T18:25:00Z",
     "canonical_repository": "https://github.com/krshhh6/BUG-STALKERS-SPILL-SENSE.git",
     "local_path": "D:\\Spill Sense\\SIH-26143-OIL-Spill",
-    "git_commit": "aad3a10",
-    "git_branch": "main"
+    "git_commit": "e0d6661",
+    "git_branch": "main",
+    "publication_readiness_verdict": "READY WITH DOCUMENTED LIMITATIONS"
   },
   "production_models": {
     "oil_segmenter_onnx": {
@@ -38,11 +39,31 @@
       "operating_threshold": 0.43
     }
   },
+  "onnx_pytorch_parity": {
+    "segmenter": {
+      "pytorch_checkpoint": "ml/checkpoints/best_segmenter_v3_exp1_lr1e4.pt",
+      "onnx_model": "frontend/public/models/oil_segmenter.onnx",
+      "input_shape": [1, 2, 512, 512],
+      "max_absolute_difference": 4.2319e-06,
+      "mean_absolute_difference": 3.2362e-08,
+      "decision_concordance_pct": 100.0,
+      "status": "REPRODUCED_PERFECT_CONCORDANCE"
+    },
+    "classifier": {
+      "pytorch_checkpoint": "ml/checkpoints/best_dualpol_classifier.pt",
+      "onnx_model": "frontend/public/models/oil_classifier.onnx",
+      "input_shape": [1, 2, 400, 400],
+      "max_absolute_difference": 0.0,
+      "mean_absolute_difference": 0.0,
+      "decision_concordance_pct": 100.0,
+      "status": "REPRODUCED_BIT_PERFECT_CONCORDANCE"
+    }
+  },
   "segmentation_metrics": {
     "regime_b_untouched_full_scenes_20": {
       "target_description": "20 untouched, strictly held-out full scenes (val_scenes[21:41], 83,886,080 total pixels)",
-      "evidence_classification": "Artifact-verified",
-      "source_artifact": "segmenter_validation_summary.json",
+      "evidence_classification": "REPRODUCED",
+      "source_artifact": "ml/reports/final_model_audit/per_scene_segmentation_metrics.csv",
       "baseline": {
         "checkpoint": "ml/checkpoints/best_segmenter_v3.pt",
         "threshold": 0.50,
@@ -87,11 +108,23 @@
         "micro_precision": 0.35040012335935066,
         "fp_pixel_reduction_pct": 79.44785036454314,
         "macro_mean_dice": 0.06636
+      },
+      "paired_scene_bootstrap_95ci": {
+        "iterations": 10000,
+        "dice_mean_delta": 0.0664,
+        "dice_ci_95": [0.0226, 0.1080],
+        "iou_mean_delta": 0.0844,
+        "iou_ci_95": [0.0285, 0.1356],
+        "precision_mean_delta": 0.1020,
+        "precision_ci_95": [0.0449, 0.1633],
+        "recall_mean_delta": -0.0047,
+        "recall_ci_95": [-0.0576, 0.0455],
+        "statistical_inference": "Dice, IoU, and Precision improvements are strictly positive and statistically significant at p < 0.05. Recall difference is statistically indistinguishable from zero (parity preserved)."
       }
     },
     "regime_a_curated_crop_validation_62": {
       "target_description": "62 curated 512x512 crops from 21 scenes (val_scenes[:21], 16,252,928 total pixels)",
-      "evidence_classification": "Artifact-verified",
+      "evidence_classification": "ARTIFACT-VERIFIED",
       "source_artifact": "PHASE3_VALIDATION_AUDIT.md",
       "baseline": {
         "dice": 0.8279,
@@ -112,7 +145,7 @@
     },
     "regime_c_historical_50scene_benchmark": {
       "target_description": "50 scenes sampled from 1,200 local TIFFs (stratified every 24th scene)",
-      "evidence_classification": "Artifact-verified (Contaminated with training scenes 0..97)",
+      "evidence_classification": "ARTIFACT-VERIFIED (Contaminated with training scenes 0..97)",
       "source_artifact": "ml/benchmarks/latency_results.json",
       "baseline": {
         "macro_dice": 0.6810576845037839,
@@ -126,7 +159,7 @@
   "classifier_metrics": {
     "validation_cache_4818_patches": {
       "target_description": "Curated validation cache cls_val_v3_zenodo_gt_dualpol.npz (4,818 patches, 75 ship-wake crops)",
-      "evidence_classification": "Artifact-verified",
+      "evidence_classification": "ARTIFACT-VERIFIED",
       "source_artifact": "PHASE3_VALIDATION_AUDIT.md",
       "baseline_tau_049": {
         "checkpoint": "ml/checkpoints/best_dualpol_classifier.pt",
@@ -151,11 +184,12 @@
     },
     "zenodo_part3_independent_test": {
       "target_description": "Zenodo Record 13761290 Part III (450 scenes: 150 Oil, 150 Clean, 150 Look-alike)",
-      "evidence_classification": "Pending",
+      "evidence_classification": "PENDING",
       "archive_size_expected_bytes": 9859650011,
       "archive_expected_md5": "5dce64cd7ff9d80189d13504bd3bcbf5",
-      "current_bytes_downloaded": 1298137088,
-      "current_percent": 13.17,
+      "current_bytes_downloaded": 1484783616,
+      "current_percent": 15.06,
+      "speed_mb_s": 0.039,
       "status": "DOWNLOADING_ACTIVE",
       "independent_oil_recall": "PENDING",
       "independent_f1": "PENDING",
@@ -166,7 +200,7 @@
     "source_artifact": "ml/benchmarks/latency_results.json",
     "hardware": {
       "gpu": "NVIDIA GeForce RTX 4060 Laptop GPU",
-      "cpu": "Intel Core i7",
+      "cpu": "Intel Core i7-13620H",
       "cuda": "12.4",
       "torch": "2.6.0+cu124",
       "onnxruntime": "1.29.0"
