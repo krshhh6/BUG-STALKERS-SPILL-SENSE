@@ -45,5 +45,6 @@ ml/weights/
 
 # Local test artifacts & generated storage
 backend/storage/
+ml/logs/
 # Internal specification copy
 Files/README.md

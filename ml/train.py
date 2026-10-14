@@ -20,6 +20,10 @@ import random
 from pathlib import Path
 from typing import Tuple, Dict, Any, List, Optional
 
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -268,13 +272,41 @@ def export_onnx(model, path, input_size=400):
 # ═══════════════════════════════════════════════════════
 
 def train(config: SpillSenseConfig = CONFIG, force_rebuild: bool = False,
-          max_scenes: Optional[int] = None) -> Dict[str, Any]:
+          max_scenes: Optional[int] = None,
+          lr: Optional[float] = None,
+          epochs: Optional[int] = None,
+          patience: Optional[int] = None,
+          batch_size: Optional[int] = None,
+          focal_alpha: Optional[float] = None,
+          focal_gamma: Optional[float] = None,
+          loss_type: str = "focal",
+          sample_weight_oil: Optional[float] = None,
+          sample_weight_lookalike: Optional[float] = None,
+          sample_weight_clean: Optional[float] = None,
+          sample_weight_ship_wake: Optional[float] = None,
+          out_suffix: str = "",
+          seed: int = 42) -> Dict[str, Any]:
     """Main classifier training pipeline."""
-    set_seed(config.random_seed)
+    set_seed(seed)
     device = config.get_device()
 
+    train_lr = lr if lr is not None else config.cls_learning_rate
+    train_epochs = epochs if epochs is not None else config.cls_epochs
+    train_patience = patience if patience is not None else config.cls_early_stopping_patience
+    train_bs = batch_size if batch_size is not None else config.cls_batch_size
+    alpha = focal_alpha if focal_alpha is not None else config.focal_alpha
+    gamma = focal_gamma if focal_gamma is not None else config.focal_gamma
+
+    sw_oil = sample_weight_oil if sample_weight_oil is not None else config.sample_weight_oil
+    sw_look = sample_weight_lookalike if sample_weight_lookalike is not None else config.sample_weight_lookalike
+    sw_clean = sample_weight_clean if sample_weight_clean is not None else config.sample_weight_clean
+    sw_wake = sample_weight_ship_wake if sample_weight_ship_wake is not None else config.sample_weight_ship_wake
+
     print("=" * 60)
-    print("SpillSense v3 -- Classifier Training (Zenodo GT)")
+    print(f"SpillSense v3 -- Classifier Training [suffix: '{out_suffix}']")
+    print(f"Config: LR={train_lr:.1e}, Epochs={train_epochs}, Patience={train_patience}, Batch={train_bs}")
+    print(f"Loss: {loss_type} (alpha={alpha}, gamma={gamma})")
+    print(f"Sampling weights: oil={sw_oil:.2f}, lookalike={sw_look:.2f}, clean={sw_clean:.2f}, ship_wake={sw_wake:.2f}")
     print("=" * 60)
     print(f"Device: {device}")
     if device.type == "cuda":
@@ -302,10 +334,10 @@ def train(config: SpillSenseConfig = CONFIG, force_rebuild: bool = False,
 
     sample_weights = np.zeros(len(tr_y), dtype=np.float64)
     target_fractions = {
-        "oil": config.sample_weight_oil,
-        "lookalike": config.sample_weight_lookalike,
-        "clean": config.sample_weight_clean,
-        "ship_wake": config.sample_weight_ship_wake,
+        "oil": sw_oil,
+        "lookalike": sw_look,
+        "clean": sw_clean,
+        "ship_wake": sw_wake,
     }
     for i in range(len(tr_y)):
         cat = str(tr_cats[i])
@@ -323,37 +355,43 @@ def train(config: SpillSenseConfig = CONFIG, force_rebuild: bool = False,
     train_ds = SARClassificationDataset(tr_x, tr_y, tr_cats, augment=True)
     val_ds = SARClassificationDataset(va_x, va_y, va_cats, augment=False)
 
-    train_loader = DataLoader(train_ds, batch_size=config.cls_batch_size, sampler=sampler,
+    train_loader = DataLoader(train_ds, batch_size=train_bs, sampler=sampler,
                               num_workers=config.num_workers, pin_memory=(device.type == "cuda"))
-    val_loader = DataLoader(val_ds, batch_size=config.cls_batch_size, shuffle=False,
+    val_loader = DataLoader(val_ds, batch_size=train_bs, shuffle=False,
                             num_workers=config.num_workers, pin_memory=(device.type == "cuda"))
 
     # Model
     model = get_classifier(in_channels=config.in_channels).to(device)
     print(f"\nModel: DualPolOilSpillNet ({count_params(model):,} params)")
 
-    # Focal Loss
-    criterion = FocalLossWithLogits(gamma=config.focal_gamma, alpha=config.focal_alpha)
+    # Loss criterion
+    if loss_type == "bce":
+        criterion = nn.BCEWithLogitsLoss()
+    else:
+        criterion = FocalLossWithLogits(gamma=gamma, alpha=alpha)
 
-    optimizer = optim.AdamW(model.parameters(), lr=config.cls_learning_rate,
+    optimizer = optim.AdamW(model.parameters(), lr=train_lr,
                             weight_decay=config.cls_weight_decay)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=3)
     scaler = torch.amp.GradScaler("cuda") if (config.use_amp and device.type == "cuda") else None
 
-    # Training loop
+    # Checkpoint paths
     config.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    ckpt_path = config.checkpoint_dir / "best_classifier_v3.pt"
+    ckpt_name = f"best_dualpol_classifier{out_suffix}.pt" if out_suffix else "best_classifier_v3.pt"
+    ckpt_path = config.checkpoint_dir / ckpt_name
+    history_path = config.checkpoint_dir / f"best_dualpol_classifier{out_suffix}_history.json" if out_suffix else config.checkpoint_dir / "best_classifier_v3_history.json"
 
     best_score = 0.0
     best_epoch = 0
     best_threshold = 0.50
     best_state = None
     patience_counter = 0
+    history = []
 
-    print(f"\n{'Ep':>3} | {'TrLoss':>7} | {'VLoss':>7} | {'VF1':>6} | {'PRAUC':>6} | {'Thr':>5} | {'LkTNR':>5} | {'LR':>8} | {'T':>4}")
-    print("-" * 80)
+    print(f"\n{'Ep':>3} | {'TrLoss':>7} | {'VLoss':>7} | {'VF1':>6} | {'VRec':>6} | {'VPrec':>6} | {'Thr':>5} | {'WkFPR':>5} | {'LkTNR':>5} | {'LR':>8} | {'T':>4}")
+    print("-" * 95)
 
-    for epoch in range(1, config.cls_epochs + 1):
+    for epoch in range(1, train_epochs + 1):
         t0 = time.time()
         tr_loss = train_one_epoch(model, train_loader, criterion, optimizer, scaler,
                                   device, config.use_amp)
@@ -363,16 +401,40 @@ def train(config: SpillSenseConfig = CONFIG, force_rebuild: bool = False,
         # Threshold search
         opt_thresh, opt_score = find_optimal_threshold(val_labels, val_probs, va_cats)
 
-        # Per-category metrics
+        # Per-category metrics at optimal threshold
         cat_m = compute_category_metrics(val_labels, val_probs, va_cats, opt_thresh)
         look_tnr = cat_m.get("lookalike", {}).get("tnr", 1.0)
+        wake_fpr = cat_m.get("ship_wake", {}).get("fpr", 0.0)
+        clean_fpr = cat_m.get("clean", {}).get("fpr", 0.0)
+
+        # Also get metrics at optimal threshold
+        opt_m = compute_metrics(val_labels, val_probs, opt_thresh)
 
         scheduler.step(opt_score)
-        lr = optimizer.param_groups[0]["lr"]
+        current_lr = float(optimizer.param_groups[0]["lr"])
         dt = time.time() - t0
 
-        print(f"{epoch:3d} | {tr_loss:7.4f} | {val_loss:7.4f} | {val_m['f1']:6.3f} | "
-              f"{val_m['pr_auc']:6.3f} | {opt_thresh:5.2f} | {look_tnr:5.2f} | {lr:8.1e} | {dt:4.1f}s")
+        print(f"{epoch:3d} | {tr_loss:7.4f} | {val_loss:7.4f} | {opt_m['f1']:6.3f} | {opt_m['recall']:6.3f} | "
+              f"{opt_m['precision']:6.3f} | {opt_thresh:5.2f} | {wake_fpr:5.2f} | {look_tnr:5.2f} | {current_lr:8.1e} | {dt:4.1f}s")
+
+        epoch_record = {
+            "epoch": epoch,
+            "train_loss": float(tr_loss),
+            "val_loss": float(val_loss),
+            "val_f1": float(opt_m["f1"]),
+            "val_recall": float(opt_m["recall"]),
+            "val_precision": float(opt_m["precision"]),
+            "val_accuracy": float(opt_m["accuracy"]),
+            "val_roc_auc": float(opt_m["roc_auc"]),
+            "val_pr_auc": float(opt_m["pr_auc"]),
+            "optimal_threshold": float(opt_thresh),
+            "lookalike_tnr": float(look_tnr),
+            "ship_wake_fpr": float(wake_fpr),
+            "clean_fpr": float(clean_fpr),
+            "lr": current_lr,
+            "time_s": round(dt, 2)
+        }
+        history.append(epoch_record)
 
         if opt_score > best_score:
             best_score = opt_score
@@ -383,13 +445,30 @@ def train(config: SpillSenseConfig = CONFIG, force_rebuild: bool = False,
             torch.save({
                 "epoch": epoch, "model_state": best_state,
                 "best_score": best_score, "best_threshold": best_threshold,
-                "val_metrics": val_m, "category_metrics": cat_m,
+                "val_metrics": opt_m, "category_metrics": cat_m,
+                "config": {
+                    "lr": train_lr, "epochs": train_epochs, "batch_size": train_bs,
+                    "loss_type": loss_type, "focal_alpha": alpha, "focal_gamma": gamma,
+                    "sample_weights": {"oil": sw_oil, "lookalike": sw_look, "clean": sw_clean, "ship_wake": sw_wake},
+                    "seed": seed
+                }
             }, ckpt_path)
+            print(f"  --> Saved new best checkpoint to {ckpt_path.name} (Score: {best_score:.4f}, Thr: {best_threshold:.2f})")
         else:
             patience_counter += 1
-            if patience_counter >= config.cls_early_stopping_patience:
-                print(f"\n[EARLY STOP] No improvement for {config.cls_early_stopping_patience} epochs.")
+            if patience_counter >= train_patience:
+                print(f"\n[EARLY STOP] No improvement for {train_patience} epochs.")
                 break
+
+    # Save history
+    with open(history_path, "w") as f:
+        json.dump({
+            "candidate": ckpt_name,
+            "best_epoch": best_epoch,
+            "best_threshold": float(best_threshold),
+            "history": history
+        }, f, indent=2)
+    print(f"[HISTORY] Training curves saved to {history_path}")
 
     # Restore best
     print(f"\nRestoring best model from epoch {best_epoch}...")
@@ -419,51 +498,86 @@ def train(config: SpillSenseConfig = CONFIG, force_rebuild: bool = False,
         else:
             print(f"  {cat:15s}: TNR={cm['tnr']:.3f} FPR={cm['fpr']:.3f} (TN={cm['tn']}, FP={cm['fp']})")
 
-    # ONNX export
-    onnx_kb = export_onnx(model, config.output_classifier_onnx, config.cls_patch_size)
+    # Export ONNX only if not an experimental suffix
+    if not out_suffix:
+        onnx_kb = export_onnx(model, config.output_classifier_onnx, config.cls_patch_size)
 
-    # Save metadata
-    metadata = {
-        "model_name": "DualPolOilSpillNet",
-        "model_type": "classifier",
-        "version": config.cache_version,
-        "exported_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "in_channels": config.in_channels,
-        "input_shape": [1, 2, config.cls_patch_size, config.cls_patch_size],
-        "channel_order": list(config.channel_names),
-        "optimal_threshold": float(best_threshold),
-        "normalization": {
-            "vv_min_db": config.vv_min_db, "vv_max_db": config.vv_max_db,
-            "vh_min_db": config.vh_min_db, "vh_max_db": config.vh_max_db,
-        },
-        "metrics": {
-            "val_accuracy": float(final_m["accuracy"]),
-            "val_precision": float(final_m["precision"]),
-            "val_recall": float(final_m["recall"]),
-            "val_f1": float(final_m["f1"]),
-            "val_pr_auc": float(final_m["pr_auc"]),
-            "val_roc_auc": float(final_m["roc_auc"]),
-        },
-        "category_metrics": {cat: {k: float(v) if isinstance(v, (int, float)) else v
-                                    for k, v in cm.items()}
-                             for cat, cm in final_cats.items()},
-        "confusion_matrix": {
-            "tp": final_m["tp"], "tn": final_m["tn"],
-            "fp": final_m["fp"], "fn": final_m["fn"],
-        },
-        "onnx_size_kb": onnx_kb,
-    }
-    config.model_metadata_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(config.model_metadata_path, "w") as f:
-        json.dump(metadata, f, indent=2)
-    print(f"\n[METADATA] Saved to {config.model_metadata_path}")
+        # Save metadata
+        metadata = {
+            "model_name": "DualPolOilSpillNet",
+            "model_type": "classifier",
+            "version": config.cache_version,
+            "exported_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "in_channels": config.in_channels,
+            "input_shape": [1, 2, config.cls_patch_size, config.cls_patch_size],
+            "channel_order": list(config.channel_names),
+            "optimal_threshold": float(best_threshold),
+            "normalization": {
+                "vv_min_db": config.vv_min_db, "vv_max_db": config.vv_max_db,
+                "vh_min_db": config.vh_min_db, "vh_max_db": config.vh_max_db,
+            },
+            "metrics": {
+                "val_accuracy": float(final_m["accuracy"]),
+                "val_precision": float(final_m["precision"]),
+                "val_recall": float(final_m["recall"]),
+                "val_f1": float(final_m["f1"]),
+                "val_pr_auc": float(final_m["pr_auc"]),
+                "val_roc_auc": float(final_m["roc_auc"]),
+            },
+            "category_metrics": {cat: {k: float(v) if isinstance(v, (int, float)) else v
+                                        for k, v in cm.items()}
+                                 for cat, cm in final_cats.items()},
+            "confusion_matrix": {
+                "tp": final_m["tp"], "tn": final_m["tn"],
+                "fp": final_m["fp"], "fn": final_m["fn"],
+            },
+            "onnx_size_kb": onnx_kb,
+        }
+        config.model_metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(config.model_metadata_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+        print(f"\n[METADATA] Saved to {config.model_metadata_path}")
+    else:
+        print(f"[ONNX] Suffix '{out_suffix}' active — preserving production ONNX & metadata untouched.")
 
     return {
         "model": model, "best_epoch": best_epoch,
         "best_threshold": best_threshold, "val_metrics": final_m,
-        "category_metrics": final_cats, "metadata": metadata,
+        "category_metrics": final_cats, "history": history,
+        "ckpt_path": str(ckpt_path)
     }
 
 
 if __name__ == "__main__":
-    train()
+    import argparse
+    parser = argparse.ArgumentParser(description="Train DualPolOilSpillNet")
+    parser.add_argument("--lr", type=float, default=None, help="Learning rate")
+    parser.add_argument("--epochs", type=int, default=None, help="Max epochs")
+    parser.add_argument("--patience", type=int, default=None, help="Early stopping patience")
+    parser.add_argument("--batch-size", type=int, default=None, help="Batch size")
+    parser.add_argument("--focal-alpha", type=float, default=None, help="Focal loss alpha")
+    parser.add_argument("--focal-gamma", type=float, default=None, help="Focal loss gamma")
+    parser.add_argument("--loss-type", type=str, default="focal", choices=["focal", "bce"], help="Loss function")
+    parser.add_argument("--sample-weight-oil", type=float, default=None, help="Sampling weight for oil")
+    parser.add_argument("--sample-weight-lookalike", type=float, default=None, help="Sampling weight for lookalike")
+    parser.add_argument("--sample-weight-clean", type=float, default=None, help="Sampling weight for clean")
+    parser.add_argument("--sample-weight-ship-wake", type=float, default=None, help="Sampling weight for ship_wake")
+    parser.add_argument("--out-suffix", type=str, default="", help="Checkpoint suffix (e.g. _exp1_loss_alpha05)")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    args = parser.parse_args()
+
+    train(
+        lr=args.lr,
+        epochs=args.epochs,
+        patience=args.patience,
+        batch_size=args.batch_size,
+        focal_alpha=args.focal_alpha,
+        focal_gamma=args.focal_gamma,
+        loss_type=args.loss_type,
+        sample_weight_oil=args.sample_weight_oil,
+        sample_weight_lookalike=args.sample_weight_lookalike,
+        sample_weight_clean=args.sample_weight_clean,
+        sample_weight_ship_wake=args.sample_weight_ship_wake,
+        out_suffix=args.out_suffix,
+        seed=args.seed
+    )

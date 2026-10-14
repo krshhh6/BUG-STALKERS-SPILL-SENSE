@@ -70,16 +70,10 @@ ZENODO_FILES = {
         "name": "Part III — Test Set (Oil, No-Oil, Look-alike)",
         "files": [
             {
-                "url": "https://zenodo.org/records/13761290/files/Images.7z?download=1",
-                "filename": "Test_Images.7z",
-                "extract_to": "Test/Images",
-                "description": "450 Test SAR scenes (150 Oil, 150 No-oil, 150 Look-alike)"
-            },
-            {
-                "url": "https://zenodo.org/records/13761290/files/Mask.7z?download=1",
-                "filename": "Test_Mask.7z",
-                "extract_to": "Test/Mask",
-                "description": "450 Test ground-truth masks"
+                "url": "https://zenodo.org/records/13761290/files/02_Test_images_and_ground_truth.7z?download=1",
+                "filename": "02_Test_images_and_ground_truth.7z",
+                "extract_to": "Test",
+                "description": "450 Test SAR scenes and ground-truth masks (9.18 GB)"
             },
         ]
     },

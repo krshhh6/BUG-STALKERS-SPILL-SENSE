@@ -12,10 +12,15 @@ Features:
 """
 
 import time
+import sys
 import json
 import random
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import numpy as np
 import torch
@@ -132,15 +137,27 @@ def tiled_inference(model: nn.Module, vv: np.ndarray, vh: np.ndarray,
 # ═══════════════════════════════════════════════════════
 
 def train_segmentation(config: SpillSenseConfig = CONFIG,
-                       max_scenes: Optional[int] = None) -> Dict[str, Any]:
+                       max_scenes: Optional[int] = 120,
+                       lr: Optional[float] = None,
+                       patience: Optional[int] = None,
+                       epochs: Optional[int] = None,
+                       out_suffix: str = "",
+                       seed: int = 42) -> Dict[str, Any]:
     """Main segmentation training pipeline."""
-    random.seed(config.random_seed)
-    np.random.seed(config.random_seed)
-    torch.manual_seed(config.random_seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
     device = config.get_device()
 
+    seg_lr = lr if lr is not None else config.seg_learning_rate
+    seg_patience = patience if patience is not None else config.seg_early_stopping_patience
+    seg_epochs = epochs if epochs is not None else config.seg_epochs
+
     print("=" * 60)
-    print("SpillSense v3 -- Segmentation Training (Zenodo GT)")
+    print(f"SpillSense v3 -- Segmentation Training (Zenodo GT) [suffix: '{out_suffix}']")
+    print(f"Config: LR={seg_lr:.1e}, Patience={seg_patience}, Epochs={seg_epochs}, Seed={seed}")
     print("=" * 60)
     print(f"Device: {device}\n")
 
@@ -176,18 +193,21 @@ def train_segmentation(config: SpillSenseConfig = CONFIG,
     # Loss
     criterion = DiceBCELoss(dice_weight=config.seg_dice_weight, bce_weight=config.seg_bce_weight)
 
-    optimizer = optim.AdamW(model.parameters(), lr=config.seg_learning_rate,
+    optimizer = optim.AdamW(model.parameters(), lr=seg_lr,
                             weight_decay=config.seg_weight_decay)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=3)
     scaler = torch.amp.GradScaler("cuda") if (config.use_amp and device.type == "cuda") else None
 
     config.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    ckpt_path = config.checkpoint_dir / "best_segmenter_v3.pt"
+    ckpt_name = f"best_segmenter_v3{out_suffix}.pt"
+    ckpt_path = config.checkpoint_dir / ckpt_name
+    history_path = config.checkpoint_dir / f"best_segmenter_v3{out_suffix}_history.json"
 
     best_dice = 0.0
     best_epoch = 0
     best_state = None
     patience_counter = 0
+    history = []
 
     print(f"\n{'Ep':>3} | {'TrLoss':>7} | {'VLoss':>7} | {'VDice':>6} | {'VIoU':>6} | {'VPrec':>6} | {'VRec':>6} | {'LR':>8} | {'T':>4}")
     print("-" * 80)
@@ -247,11 +267,25 @@ def train_segmentation(config: SpillSenseConfig = CONFIG,
         seg_m = compute_seg_metrics(all_preds, all_targets)
 
         scheduler.step(seg_m["dice"])
-        lr = optimizer.param_groups[0]["lr"]
+        current_lr = float(optimizer.param_groups[0]["lr"])
         dt = time.time() - t0
 
         print(f"{epoch:3d} | {avg_tr_loss:7.4f} | {avg_val_loss:7.4f} | {seg_m['dice']:6.3f} | "
-              f"{seg_m['iou']:6.3f} | {seg_m['precision']:6.3f} | {seg_m['recall']:6.3f} | {lr:8.1e} | {dt:4.1f}s")
+              f"{seg_m['iou']:6.3f} | {seg_m['precision']:6.3f} | {seg_m['recall']:6.3f} | {current_lr:8.1e} | {dt:4.1f}s")
+
+        epoch_record = {
+            "epoch": epoch,
+            "train_loss": float(avg_tr_loss),
+            "val_loss": float(avg_val_loss),
+            "dice": float(seg_m["dice"]),
+            "iou": float(seg_m["iou"]),
+            "precision": float(seg_m["precision"]),
+            "recall": float(seg_m["recall"]),
+            "pixel_accuracy": float(seg_m["pixel_accuracy"]),
+            "lr": current_lr,
+            "time_s": round(dt, 2)
+        }
+        history.append(epoch_record)
 
         if seg_m["dice"] > best_dice:
             best_dice = seg_m["dice"]
@@ -261,38 +295,73 @@ def train_segmentation(config: SpillSenseConfig = CONFIG,
             torch.save({
                 "epoch": epoch, "model_state": best_state,
                 "best_dice": best_dice, "seg_metrics": seg_m,
+                "config": {
+                    "lr": seg_lr, "patience": seg_patience,
+                    "max_scenes": max_scenes, "seed": seed
+                }
             }, ckpt_path)
+            print(f"  --> Saved new best checkpoint to {ckpt_path.name} (Dice: {best_dice:.4f})")
         else:
             patience_counter += 1
-            if patience_counter >= config.seg_early_stopping_patience:
-                print(f"\n[EARLY STOP] No improvement for {config.seg_early_stopping_patience} epochs.")
+            if patience_counter >= seg_patience:
+                print(f"\n[EARLY STOP] No improvement for {seg_patience} epochs.")
                 break
+
+    # Save training history curve
+    with open(history_path, "w") as f:
+        json.dump({
+            "candidate": ckpt_name,
+            "best_epoch": best_epoch,
+            "best_dice": float(best_dice),
+            "history": history
+        }, f, indent=2)
+    print(f"[HISTORY] Training curves saved to {history_path}")
 
     # Restore best
     if best_state:
         model.load_state_dict(best_state)
     model.to(device)
 
-    print(f"\nBest epoch: {best_epoch}, Best Dice: {best_dice:.3f}")
+    print(f"\nBest epoch: {best_epoch}, Best Dice: {best_dice:.4f}")
 
-    # Export ONNX
-    model.eval().to("cpu")
-    config.output_segmenter_onnx.parent.mkdir(parents=True, exist_ok=True)
-    dummy = torch.randn(1, 2, config.seg_patch_size, config.seg_patch_size)
-    torch.onnx.export(
-        model, dummy, str(config.output_segmenter_onnx),
-        export_params=True, opset_version=14, do_constant_folding=True,
-        input_names=["input"], output_names=["output"],
-        dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}}
-    )
-    seg_size_kb = config.output_segmenter_onnx.stat().st_size / 1024
-    print(f"[ONNX] Segmenter exported ({seg_size_kb:.1f} KB)")
+    # Export ONNX only if not an experimental suffix (preserves production onnx)
+    if not out_suffix:
+        model.eval().to("cpu")
+        config.output_segmenter_onnx.parent.mkdir(parents=True, exist_ok=True)
+        dummy = torch.randn(1, 2, config.seg_patch_size, config.seg_patch_size)
+        torch.onnx.export(
+            model, dummy, str(config.output_segmenter_onnx),
+            export_params=True, opset_version=14, do_constant_folding=True,
+            input_names=["input"], output_names=["output"],
+            dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}}
+        )
+        seg_size_kb = config.output_segmenter_onnx.stat().st_size / 1024
+        print(f"[ONNX] Segmenter exported ({seg_size_kb:.1f} KB)")
+    else:
+        print(f"[ONNX] Suffix '{out_suffix}' active — preserving production ONNX untouched.")
 
     return {
         "model": model, "best_epoch": best_epoch,
-        "best_dice": best_dice, "onnx_kb": seg_size_kb,
+        "best_dice": best_dice, "history": history, "ckpt_path": str(ckpt_path)
     }
 
 
 if __name__ == "__main__":
-    train_segmentation()
+    import argparse
+    parser = argparse.ArgumentParser(description="Train SpillSegNet")
+    parser.add_argument("--lr", type=float, default=None, help="Learning rate (default: from config 5e-4)")
+    parser.add_argument("--patience", type=int, default=None, help="Early stopping patience (default: from config 6)")
+    parser.add_argument("--epochs", type=int, default=None, help="Max epochs (default: from config 30)")
+    parser.add_argument("--max-scenes", type=int, default=120, help="Scene count (default 120, matching baseline split)")
+    parser.add_argument("--out-suffix", type=str, default="", help="Checkpoint name suffix (e.g. _exp1_lr1e4)")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    args = parser.parse_args()
+
+    train_segmentation(
+        lr=args.lr,
+        patience=args.patience,
+        epochs=args.epochs,
+        max_scenes=args.max_scenes,
+        out_suffix=args.out_suffix,
+        seed=args.seed
+    )

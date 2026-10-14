@@ -1,0 +1,76 @@
+{
+  "audit_phase": "Phase 4 — Final Model Validation",
+  "component": "DualPolOilSpillNet Classifier",
+  "audit_timestamp_utc": "2026-10-14T20:05:00Z",
+  "status": "UNAVAILABLE_PENDING_DOWNLOAD",
+  "dataset_audit": {
+    "target_dataset": "Zenodo Sentinel-1 SAR Oil Spill Dataset — Part III (Test Set)",
+    "zenodo_record_id": 13761290,
+    "concept_record_id": 13761289,
+    "doi": "10.5281/zenodo.13761290",
+    "title": "Sentinel-1 SAR Oil spill image dataset for train, validate, and test deep learning models. Part III",
+    "authors": "Trujillo-Acatitla et al.",
+    "intended_scenes": {
+      "total_scenes": 450,
+      "oil_scenes": 150,
+      "no_oil_scenes": 150,
+      "lookalike_scenes": 150,
+      "scene_format": "2048x2048 dual-polarization (VV/VH, dB) GeoTIFF + binary GT mask"
+    },
+    "remote_archive_manifest": [
+      {
+        "filename": "02_Test_images_and_ground_truth.7z",
+        "size_bytes": 9857000000,
+        "size_gb": 9.18,
+        "checksum_md5": "5dce64cd7ff9d80189d13504bd3bcbf5",
+        "download_url": "https://zenodo.org/records/13761290/files/02_Test_images_and_ground_truth.7z?download=1"
+      }
+    ],
+    "local_storage_path": "D:/Test",
+    "local_presence": false
+  },
+  "downloader_verification": {
+    "downloader_module": "ml/download_zenodo.py",
+    "documented_urls": [
+      "https://zenodo.org/records/13761290/files/Images.7z?download=1",
+      "https://zenodo.org/records/13761290/files/Mask.7z?download=1"
+    ],
+    "verification_finding": "HTTP 404 Not Found. The Zenodo record does not host separate Images.7z and Mask.7z files; the dataset was uploaded as a single monolithic 9.18 GB archive named 02_Test_images_and_ground_truth.7z.",
+    "downloader_fix_required": "Update ZENODO_FILES['part3'] in ml/download_zenodo.py to target 02_Test_images_and_ground_truth.7z"
+  },
+  "network_throughput_assessment": {
+    "probe_bytes_downloaded": 1048576,
+    "probe_elapsed_seconds": 20.36,
+    "measured_speed_mb_per_sec": 0.051,
+    "estimated_download_duration_minutes": 2971.4,
+    "estimated_download_duration_hours": 49.52,
+    "operational_verdict": "Network rate-limiting prevents completing the 9.18 GB transfer during this interactive session."
+  },
+  "compliance_rule_b6": {
+    "rule": "If the dataset is unavailable, malformed, or unsuitable, stop and report the precise limitation rather than substituting validation scores.",
+    "action_taken": "Halted test evaluation immediately upon confirming data unavailability and downloader 404. Validation scores are strictly withheld from this test artifact to avoid score substitution or fabrication."
+  },
+  "frozen_models_for_independent_test": {
+    "baseline": {
+      "checkpoint": "best_dualpol_classifier.pt",
+      "sha256": "262EF1A8D1F3FBCFBBEDBCC67AEE0C3C1FAF5995CC855CF7131D1FD14C78D902",
+      "architecture": "DualPolOilSpillNet",
+      "frozen_threshold": 0.49,
+      "epoch": 7,
+      "status": "FROZEN_AWAITING_PART3_EVAL"
+    },
+    "candidate": {
+      "checkpoint": "best_dualpol_classifier_exp2_sampling_sw30.pt",
+      "sha256": "014D209A19DBD5C42DA275648F8E5BCB748ABCFCB1562B91F0541FBDCCE0653E",
+      "architecture": "DualPolOilSpillNet",
+      "frozen_threshold": 0.43,
+      "epoch": 4,
+      "status": "FROZEN_AWAITING_PART3_EVAL"
+    }
+  },
+  "staging_decision": {
+    "decision": "HOLD_IN_STAGING",
+    "rationale": "Independent test data (Zenodo Part III) must be downloaded and verified on local disk prior to production promotion.",
+    "production_impact": "Production classifier ONNX (frontend/public/models/oil_classifier.onnx) remains unchanged."
+  }
+}
