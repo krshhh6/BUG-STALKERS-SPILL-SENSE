@@ -1,0 +1,239 @@
+{
+  "audit_metadata": {
+    "project": "SpillSense (SIH-26143)",
+    "audit_timestamp_utc": "2026-10-14T17:15:00Z",
+    "canonical_repository": "https://github.com/krshhh6/BUG-STALKERS-SPILL-SENSE.git",
+    "local_path": "D:\\Spill Sense\\SIH-26143-OIL-Spill",
+    "git_commit": "aad3a10",
+    "git_branch": "main"
+  },
+  "production_models": {
+    "oil_segmenter_onnx": {
+      "path": "frontend/public/models/oil_segmenter.onnx",
+      "sha256": "D464E6CEF8DC47B7AFDD0E7F0AE1068AE92798DF3154004BB771B7ED317D4A0E",
+      "size_bytes": 6367937,
+      "status": "PROMOTED_ACTIVE_IN_PRODUCTION",
+      "architecture": "SpillSegNet (ResNet34-UNet Dual-Pol)",
+      "operating_threshold": 0.50
+    },
+    "oil_segmenter_baseline_backup_onnx": {
+      "path": "frontend/public/models/oil_segmenter_baseline_backup.onnx",
+      "sha256": "8E58A9AF1FB3D3F0C94A79DAAA17DA2015910F82D2A74EBCFE02B0CC60BC3DE9",
+      "size_bytes": 6367937,
+      "status": "PRESERVED_ROLLBACK_BACKUP"
+    },
+    "oil_classifier_onnx": {
+      "path": "frontend/public/models/oil_classifier.onnx",
+      "sha256": "B002352F633F55922F5B4ED44480EB9E560425B4E55810947A7F2734C435C530",
+      "size_bytes": 1292175,
+      "status": "UNTOUCHED_BASELINE_ACTIVE_IN_PRODUCTION",
+      "architecture": "DualPolOilSpillNet (Dual-Stream ResNet18)",
+      "operating_threshold": 0.49
+    },
+    "staged_candidate_classifier_pt": {
+      "path": "ml/checkpoints/best_dualpol_classifier_exp2_sampling_sw30.pt",
+      "sha256": "014D209A19DBD5C42DA275648F8E5BCB748ABCFCB1562B91F0541FBDCCE0653E",
+      "size_bytes": 45716569,
+      "status": "FROZEN_IN_STAGING",
+      "operating_threshold": 0.43
+    }
+  },
+  "segmentation_metrics": {
+    "regime_b_untouched_full_scenes_20": {
+      "target_description": "20 untouched, strictly held-out full scenes (val_scenes[21:41], 83,886,080 total pixels)",
+      "evidence_classification": "Artifact-verified",
+      "source_artifact": "segmenter_validation_summary.json",
+      "baseline": {
+        "checkpoint": "ml/checkpoints/best_segmenter_v3.pt",
+        "threshold": 0.50,
+        "micro_dice": 0.5945105467137218,
+        "micro_iou": 0.4229918234702174,
+        "micro_precision": 0.45094758032450166,
+        "micro_recall": 0.872174729521092,
+        "micro_fpr": 0.01757009548292378,
+        "tp_pixels": 1190829,
+        "fp_pixels": 1449897,
+        "fn_pixels": 174527,
+        "tn_pixels": 81070827,
+        "macro_mean_dice": 0.75557,
+        "macro_median_dice": 0.82455,
+        "macro_std_dice": 0.19811249621842314,
+        "macro_mean_iou": 0.635525,
+        "macro_mean_precision": 0.723495,
+        "macro_mean_recall": 0.88433
+      },
+      "candidate": {
+        "checkpoint": "ml/checkpoints/best_segmenter_v3_exp1_lr1e4.pt",
+        "threshold": 0.50,
+        "micro_dice": 0.8390120852700977,
+        "micro_iou": 0.7226708173489381,
+        "micro_precision": 0.8013477036838523,
+        "micro_recall": 0.8803916341232616,
+        "micro_fpr": 0.0036110323026249747,
+        "tp_pixels": 1202048,
+        "fp_pixels": 297985,
+        "fn_pixels": 163308,
+        "tn_pixels": 82222739,
+        "macro_mean_dice": 0.82193,
+        "macro_median_dice": 0.86185,
+        "macro_std_dice": 0.15984107600659903,
+        "macro_mean_iou": 0.719875,
+        "macro_mean_precision": 0.825495,
+        "macro_mean_recall": 0.87961
+      },
+      "delta": {
+        "micro_dice": 0.2445015385563759,
+        "micro_iou": 0.2996789938787207,
+        "micro_precision": 0.35040012335935066,
+        "fp_pixel_reduction_pct": 79.44785036454314,
+        "macro_mean_dice": 0.06636
+      }
+    },
+    "regime_a_curated_crop_validation_62": {
+      "target_description": "62 curated 512x512 crops from 21 scenes (val_scenes[:21], 16,252,928 total pixels)",
+      "evidence_classification": "Artifact-verified",
+      "source_artifact": "PHASE3_VALIDATION_AUDIT.md",
+      "baseline": {
+        "dice": 0.8279,
+        "iou": 0.7063,
+        "precision": 0.7987,
+        "recall": 0.8593,
+        "pixel_accuracy": 0.9528,
+        "fp_pixels": 464658
+      },
+      "candidate": {
+        "dice": 0.8750,
+        "iou": 0.7778,
+        "precision": 0.8891,
+        "recall": 0.8613,
+        "pixel_accuracy": 0.9675,
+        "fp_pixels": 230489
+      }
+    },
+    "regime_c_historical_50scene_benchmark": {
+      "target_description": "50 scenes sampled from 1,200 local TIFFs (stratified every 24th scene)",
+      "evidence_classification": "Artifact-verified (Contaminated with training scenes 0..97)",
+      "source_artifact": "ml/benchmarks/latency_results.json",
+      "baseline": {
+        "macro_dice": 0.6810576845037839,
+        "macro_iou": 0.5552443463011817,
+        "macro_precision": 0.6443202864668698,
+        "macro_recall": 0.8892670459551013,
+        "micro_dice_reported_in_drafts": 0.7142
+      }
+    }
+  },
+  "classifier_metrics": {
+    "validation_cache_4818_patches": {
+      "target_description": "Curated validation cache cls_val_v3_zenodo_gt_dualpol.npz (4,818 patches, 75 ship-wake crops)",
+      "evidence_classification": "Artifact-verified",
+      "source_artifact": "PHASE3_VALIDATION_AUDIT.md",
+      "baseline_tau_049": {
+        "checkpoint": "ml/checkpoints/best_dualpol_classifier.pt",
+        "threshold": 0.49,
+        "accuracy": 0.9427,
+        "oil_recall": 0.3145,
+        "precision": 0.9386,
+        "f1": 0.4712,
+        "ship_wake_fpr": 0.3733,
+        "ship_wake_tnr": 0.6267
+      },
+      "candidate_exp1b_tau_043": {
+        "checkpoint": "ml/checkpoints/best_dualpol_classifier_exp2_sampling_sw30.pt",
+        "threshold": 0.43,
+        "accuracy": 0.9683,
+        "oil_recall": 0.9624,
+        "precision": 0.9915,
+        "f1": 0.9767,
+        "ship_wake_fpr": 0.0267,
+        "ship_wake_tnr": 0.9733
+      }
+    },
+    "zenodo_part3_independent_test": {
+      "target_description": "Zenodo Record 13761290 Part III (450 scenes: 150 Oil, 150 Clean, 150 Look-alike)",
+      "evidence_classification": "Pending",
+      "archive_size_expected_bytes": 9859650011,
+      "archive_expected_md5": "5dce64cd7ff9d80189d13504bd3bcbf5",
+      "current_bytes_downloaded": 1298137088,
+      "current_percent": 13.17,
+      "status": "DOWNLOADING_ACTIVE",
+      "independent_oil_recall": "PENDING",
+      "independent_f1": "PENDING",
+      "independent_ship_wake_fpr": "UNMEASURABLE (Zenodo Part III contains zero ship-wake labels)"
+    }
+  },
+  "latency_and_runtime_metrics": {
+    "source_artifact": "ml/benchmarks/latency_results.json",
+    "hardware": {
+      "gpu": "NVIDIA GeForce RTX 4060 Laptop GPU",
+      "cpu": "Intel Core i7",
+      "cuda": "12.4",
+      "torch": "2.6.0+cu124",
+      "onnxruntime": "1.29.0"
+    },
+    "end_to_end_gpu_pipeline": {
+      "mean_ms": 1483.92904400127,
+      "median_ms": 1413.8632000103826,
+      "p95_ms": 2420.1362499872625,
+      "min_ms": 886.6145,
+      "max_ms": 2602.5953
+    },
+    "classifier_inference_latencies": {
+      "pytorch_cuda_median_ms": 9.5636,
+      "pytorch_cpu_median_ms": 16.5712,
+      "onnx_cpu_median_ms": 5.3429,
+      "onnx_wasm_median_ms": 12.3844
+    },
+    "segmenter_patch_latencies": {
+      "pytorch_cuda_median_ms": 86.0685,
+      "pytorch_cpu_median_ms": 625.7350,
+      "onnx_cpu_median_ms": 229.1769,
+      "onnx_wasm_median_ms": 489.1594
+    },
+    "fullscene_tiled_segmentation_latencies": {
+      "gpu_tiled_median_ms": 1172.3033,
+      "gpu_tiled_mean_ms": 1239.2392,
+      "gpu_tiled_p95_ms": 2197.9376,
+      "cpu_tiled_mean_ms": 8406.7965
+    },
+    "tiling_stride_tradeoff": {
+      "source_artifact": "ml/benchmarks/failure_analysis/parameter_sensitivity_results.csv",
+      "stride_512_tiles_16_latency_ms": 303.87,
+      "stride_384_tiles_25_latency_ms": 472.63,
+      "stride_256_tiles_49_latency_ms": 895.14,
+      "stride_384_hann_latency_ms": 477.18
+    },
+    "workload_duration_resolution": {
+      "gpu_pipeline_50_scenes_calculated_seconds": 74.196,
+      "script_total_elapsed_benchmark_seconds": 107.15,
+      "difference_explanation": "107.15s includes 3 full-scene CPU runs (25.22s), CPU patch runs (15.75s), WASM subprocess runs (~13s), warmups, and initialization overhead"
+    }
+  },
+  "polarization_ablation_metrics": {
+    "source_artifact": "ml/benchmarks/failure_analysis/ablation_study_results.csv",
+    "dual_pol_vv_vh": {
+      "seg_dice": 0.8183,
+      "seg_iou": 0.6976,
+      "oil_detection_recall": 1.0,
+      "shipwake_rejection_tnr": 0.9
+    },
+    "single_pol_vv_only": {
+      "seg_dice": 0.6655,
+      "seg_iou": 0.5850,
+      "oil_detection_recall": 0.0,
+      "shipwake_rejection_tnr": 1.0
+    },
+    "single_pol_vh_only": {
+      "seg_dice": 0.1588,
+      "seg_iou": 0.0890,
+      "oil_detection_recall": 1.0,
+      "shipwake_rejection_tnr": 0.0
+    },
+    "single_pol_vv_replicated": {
+      "seg_dice": 0.6854,
+      "seg_iou": 0.5778,
+      "oil_detection_recall": 1.0,
+      "shipwake_rejection_tnr": 0.9
+    }
+  }
+}
