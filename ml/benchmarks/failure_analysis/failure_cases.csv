@@ -1,0 +1,12 @@
+SceneID,Category,FailureType,FailureMechanism,ClsProbability,ClsDecision,SegDice,SegIoU,BoundaryIoU,GTPixels,PredPixels
+lookalike_24,lookalike,False Positive (Natural Look-Alike),Low wind speeds (<3 m/s) produce specular backscatter drop indistinguishable from oil.,0.0025,NON-OIL,0.0,0.0,0.0,0,518
+ship_wake_30,ship_wake,False Positive (Ship Wake),Turbulent vessel wake causes localized Bragg damping mimicking biogenic/mineral slick.,0.0008,NON-OIL,0.0,0.0,0.0,0,28524
+ship_wake_31,ship_wake,False Positive (Ship Wake),Turbulent vessel wake causes localized Bragg damping mimicking biogenic/mineral slick.,0.805,OIL,0.0,0.0,0.0,0,21937
+ship_wake_32,ship_wake,False Positive (Ship Wake),Turbulent vessel wake causes localized Bragg damping mimicking biogenic/mineral slick.,0.0625,NON-OIL,0.0,0.0,0.0,0,257498
+ship_wake_33,ship_wake,False Positive (Ship Wake),Turbulent vessel wake causes localized Bragg damping mimicking biogenic/mineral slick.,0.0097,NON-OIL,0.0,0.0,0.0,0,256181
+ship_wake_34,ship_wake,False Positive (Ship Wake),Turbulent vessel wake causes localized Bragg damping mimicking biogenic/mineral slick.,0.0108,NON-OIL,0.0,0.0,0.0,0,102567
+ship_wake_35,ship_wake,False Positive (Ship Wake),Turbulent vessel wake causes localized Bragg damping mimicking biogenic/mineral slick.,0.0008,NON-OIL,0.0,0.0,0.0,0,74183
+ship_wake_36,ship_wake,False Positive (Ship Wake),Turbulent vessel wake causes localized Bragg damping mimicking biogenic/mineral slick.,0.0046,NON-OIL,0.0,0.0,0.0,0,116263
+ship_wake_37,ship_wake,False Positive (Ship Wake),Turbulent vessel wake causes localized Bragg damping mimicking biogenic/mineral slick.,0.0221,NON-OIL,0.0,0.0,0.0,0,47668
+ship_wake_38,ship_wake,False Positive (Ship Wake),Turbulent vessel wake causes localized Bragg damping mimicking biogenic/mineral slick.,0.1168,NON-OIL,0.0,0.0,0.0,0,87016
+ship_wake_39,ship_wake,False Positive (Ship Wake),Turbulent vessel wake causes localized Bragg damping mimicking biogenic/mineral slick.,0.0024,NON-OIL,0.0,0.0,0.0,0,1144

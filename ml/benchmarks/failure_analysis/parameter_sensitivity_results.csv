@@ -1,0 +1,23 @@
+ExperimentCategory,ParameterName,ParameterValue,Metric1_Name,Metric1_Value,Metric2_Name,Metric2_Value,Metric3_Name,Metric3_Value,Notes
+ClassifierThreshold,Threshold,0.1,F1,0.9091,Precision,0.8333,Recall,1.0,WakeFPR=0.2
+ClassifierThreshold,Threshold,0.15,F1,0.9524,Precision,0.9091,Recall,1.0,WakeFPR=0.1
+ClassifierThreshold,Threshold,0.2,F1,0.9524,Precision,0.9091,Recall,1.0,WakeFPR=0.1
+ClassifierThreshold,Threshold,0.27,F1,0.9524,Precision,0.9091,Recall,1.0,WakeFPR=0.1
+ClassifierThreshold,Threshold,0.35,F1,0.9524,Precision,0.9091,Recall,1.0,WakeFPR=0.1
+ClassifierThreshold,Threshold,0.5,F1,0.9524,Precision,0.9091,Recall,1.0,WakeFPR=0.1
+ClassifierThreshold,Threshold,0.65,F1,0.9524,Precision,0.9091,Recall,1.0,WakeFPR=0.1
+ClassifierThreshold,Threshold,0.8,F1,0.9524,Precision,0.9091,Recall,1.0,WakeFPR=0.1
+SegmentationThreshold,Threshold,0.2,MacroDice,0.3909,MacroIoU,0.2527,BoundaryIoU,0.0084,MicroDice=0.4276
+SegmentationThreshold,Threshold,0.3,MacroDice,0.7704,MacroIoU,0.6386,BoundaryIoU,0.076,MicroDice=0.8066
+SegmentationThreshold,Threshold,0.4,MacroDice,0.8087,MacroIoU,0.6849,BoundaryIoU,0.1063,MicroDice=0.8345
+SegmentationThreshold,Threshold,0.5,MacroDice,0.8183,MacroIoU,0.6976,BoundaryIoU,0.1222,MicroDice=0.842
+SegmentationThreshold,Threshold,0.6,MacroDice,0.8211,MacroIoU,0.7028,BoundaryIoU,0.1399,MicroDice=0.8453
+SegmentationThreshold,Threshold,0.7,MacroDice,0.8186,MacroIoU,0.7028,BoundaryIoU,0.1645,MicroDice=0.8445
+SegmentationThreshold,Threshold,0.8,MacroDice,0.8095,MacroIoU,0.6991,BoundaryIoU,0.214,MicroDice=0.8404
+TilingGeometry,Stride,512,TilesCount,16,LatencyMs,303.87,MacroDice,0.6642,Overlap=0.0%
+TilingGeometry,Stride,384,TilesCount,25,LatencyMs,472.63,MacroDice,0.6684,Overlap=25.0%
+TilingGeometry,Stride,256,TilesCount,49,LatencyMs,895.14,MacroDice,0.6686,Overlap=50.0%
+TilingGeometry,Stride,384,TilesCount,25,LatencyMs,477.18,MacroDice,0.6663,"Overlap=25.0%,Window=2D_Hann_Window"
+PreprocessingBounds,Setting,Standard Physical Bounds (Default),MacroDice,0.6684,MacroIoU,0.5527,StdDice,0.2658,"Bounds=[-32.0, -10.0]",Impact=Physical ocean calibration baseline (ESA Sentinel-1 IW GRD σ⁰ dB)
+PreprocessingBounds,Setting,Compressed Dynamic Range (High Contrast),MacroDice,0.5497,MacroIoU,0.4438,StdDice,0.3127,"Bounds=[-28.0, -12.0]",Impact=Enhanced contrast with tail clipping (causes background saturation & slick clipping)
+PreprocessingBounds,Setting,Expanded Dynamic Range (Low Contrast),MacroDice,0.5533,MacroIoU,0.4281,StdDice,0.2699,"Bounds=[-36.0, -6.0]",Impact=Broader radiometric range but compressed gradient resolution (attenuates faint slick boundaries)

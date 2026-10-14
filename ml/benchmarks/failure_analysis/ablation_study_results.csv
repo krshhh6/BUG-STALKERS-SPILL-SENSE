@@ -1,0 +1,5 @@
+ConditionID,Description,SegDice,SegIoU,BoundaryIoU,PixelPrecision,PixelRecall,OilDetectionRecall,LookalikeRejectionTNR,ShipwakeRejectionTNR
+Dual_Pol_VV_VH,Dual-Polarization (VV + VH) [Proposed],0.8183,0.6976,0.1222,0.8004,0.8882,1.0,1.0,0.9
+Single_Pol_VV_Only,Co-Pol VV-Only (VH Zeroed),0.6655,0.585,0.1994,0.9017,0.683,0.0,1.0,1.0
+Single_Pol_VH_Only,Cross-Pol VH-Only (VV Zeroed),0.1588,0.089,0.0,0.089,1.0,1.0,0.0,0.0
+Single_Pol_VV_Replicated,Co-Pol VV Replicated (Pseudo-VH = VV),0.6854,0.5778,0.0756,0.8166,0.7595,1.0,1.0,0.9

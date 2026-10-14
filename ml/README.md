@@ -55,11 +55,15 @@ High-accuracy, real-world Sentinel-1 Synthetic Aperture Radar (SAR) dual-polariz
 - **Input:** $2 \times 512 \times 512 \rightarrow 1 \times 512 \times 512$
 - **Backbone:** 4-stage U-Net with skip connections and bilinear upsampling (1.59M params).
 - **Loss:** Dice Loss + Binary Cross-Entropy.
-- **Validation Metrics (Holdout Scenes):**
-  - **Dice Score:** **88.4%**
-  - **IoU:** **79.3%**
-  - **Precision:** **87.5%**
-  - **Recall:** **89.4%**
+- **Validation Metrics (Curated 512×512 Oil Crops):**
+  - **Dice Score:** **82.8%** (up to 88.4% on early holdout crops)
+  - **IoU:** **70.6%** (up to 79.3% on early holdout crops)
+  - **Precision:** **79.9%**
+  - **Recall:** **85.9%**
+- **Empirical Full-Scene Evaluation (Uncropped 2048×2048 Scenes, 25 Tiles):**
+  - **Mean Macro-Dice:** **68.1%** | **Mean Macro-IoU:** **55.5%**
+  - **Pixel Recall:** **88.9%** (Consistently identifies real oil spill extent)
+  - **Full-Scene Precision:** **64.4%** (Reflects ambient open-ocean class imbalance across 4.19M pixels)
 
 ---
 

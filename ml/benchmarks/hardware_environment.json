@@ -1,0 +1,166 @@
+{
+  "timestamp_utc": "2026-10-12T20:05:11.494189+00:00",
+  "project": "SpillSense (SIH-26143)",
+  "cpu": {
+    "model": "AMD64 Family 25 Model 116 Stepping 1, AuthenticAMD",
+    "architecture": "AMD64",
+    "physical_cores": 8,
+    "logical_cores": 16,
+    "max_frequency_mhz": 3801.0,
+    "current_frequency_mhz": 2516.0
+  },
+  "gpu": {
+    "available": true,
+    "model": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "vram_total_gb": 7.996,
+    "compute_capability": "8.9",
+    "cuda_version": "12.4",
+    "cudnn_version": 90100,
+    "device_count": 1
+  },
+  "system_ram": {
+    "total_gb": 15.29,
+    "available_gb": 2.66,
+    "used_gb": 12.63,
+    "percent_used": 82.6
+  },
+  "software": {
+    "os": "Windows",
+    "os_release": "10",
+    "os_version": "10.0.26300",
+    "platform": "Windows-10-10.0.26300-SP0",
+    "python_version": "3.11.9",
+    "python_compiler": "MSC v.1938 64 bit (AMD64)",
+    "packages": {
+      "torch": "2.6.0+cu124",
+      "torchvision": "0.21.0+cu124",
+      "onnxruntime": "1.29.0",
+      "numpy": "2.4.6",
+      "scipy": "1.17.1",
+      "shapely": "2.1.2",
+      "tifffile": "2026.3.3",
+      "PIL": "12.3.0",
+      "psutil": "7.2.2",
+      "pyproj": "3.7.2",
+      "cv2": "5.0.0"
+    },
+    "node_version": "v24.19.0",
+    "onnxruntime_providers": [
+      "AzureExecutionProvider",
+      "CPUExecutionProvider"
+    ]
+  },
+  "models": {
+    "DualPolOilSpillNet": {
+      "checkpoint": "best_classifier_v3.pt",
+      "file_size_bytes": 1333184,
+      "file_size_mb": 1.27,
+      "total_parameters": 317057,
+      "trainable_parameters": 317057,
+      "input_shape": [
+        1,
+        2,
+        400,
+        400
+      ],
+      "dtype": "float32",
+      "in_channels": 2,
+      "channels": [
+        "VV",
+        "VH"
+      ],
+      "calibrated_threshold": 0.1
+    },
+    "SpillSegNet": {
+      "checkpoint": "best_segmenter_v3.pt",
+      "file_size_bytes": 6485850,
+      "file_size_mb": 6.19,
+      "total_parameters": 1593089,
+      "trainable_parameters": 1593089,
+      "input_shape": [
+        1,
+        2,
+        512,
+        512
+      ],
+      "dtype": "float32",
+      "in_channels": 2,
+      "channels": [
+        "VV",
+        "VH"
+      ]
+    },
+    "onnx_models": {
+      "oil_classifier.onnx": {
+        "file_size_bytes": 1292175,
+        "file_size_mb": 1.23,
+        "input_name": "input",
+        "input_shape": [
+          "batch",
+          2,
+          400,
+          400
+        ],
+        "output_name": "output",
+        "output_shape": [
+          "batch",
+          1
+        ]
+      },
+      "oil_segmenter.onnx": {
+        "file_size_bytes": 6367937,
+        "file_size_mb": 6.07,
+        "input_name": "input",
+        "input_shape": [
+          "batch",
+          2,
+          512,
+          512
+        ],
+        "output_name": "output",
+        "output_shape": [
+          "batch",
+          1,
+          512,
+          512
+        ]
+      },
+      "oil_segmenter_dann.onnx": {
+        "file_size_bytes": 10090401,
+        "file_size_mb": 9.62,
+        "input_name": "input",
+        "input_shape": [
+          "batch_size",
+          2,
+          512,
+          512
+        ],
+        "output_name": "output",
+        "output_shape": [
+          "batch_size",
+          1,
+          512,
+          512
+        ]
+      },
+      "oil_segmenter_dann_int8.onnx": {
+        "file_size_bytes": 2643048,
+        "file_size_mb": 2.52,
+        "input_name": "input",
+        "input_shape": [
+          "batch_size",
+          2,
+          512,
+          512
+        ],
+        "output_name": "output",
+        "output_shape": [
+          "batch_size",
+          1,
+          512,
+          512
+        ]
+      }
+    }
+  }
+}

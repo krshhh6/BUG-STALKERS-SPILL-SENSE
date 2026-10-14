@@ -1,0 +1,178 @@
+{
+  "timestamp_utc": "2026-10-12T20:24:10Z",
+  "project": "SpillSense (SIH-26143)",
+  "hardware_environment": {
+    "gpu": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "cuda_available": true,
+    "torch_version": "2.6.0+cu124",
+    "onnxruntime_version": "1.29.0",
+    "python_version": "3.11.9"
+  },
+  "dataset_context": {
+    "total_available_local_tiffs": 1200,
+    "scenes_benchmarked": 50,
+    "sampling_method": "Stratified sampling across 1,200 local Sentinel-1 GeoTIFF scenes",
+    "zenodo_ground_truth_matching": "1-to-1 scene name parity verified"
+  },
+  "pipeline_stages": {
+    "1_sar_tiff_loading": {
+      "count": 50,
+      "median": 171.0028500019689,
+      "mean": 174.36959400220076,
+      "std": 24.462167142239316,
+      "p95": 207.29182500144813,
+      "min": 137.11239999975078,
+      "max": 281.29070000431966
+    },
+    "2_sar_preprocessing": {
+      "count": 50,
+      "median": 58.16059999051504,
+      "mean": 63.67455999861704,
+      "std": 16.471551810769572,
+      "p95": 96.6367749999335,
+      "min": 48.72429999522865,
+      "max": 136.8542999989586
+    },
+    "3_classifier_pytorch_gpu": {
+      "count": 50,
+      "median": 9.563649997289758,
+      "mean": 10.031531999993604,
+      "std": 1.4954432013123025,
+      "p95": 12.933449991396628,
+      "min": 8.080900006461889,
+      "max": 14.303199990536086
+    },
+    "3_classifier_pytorch_cpu": {
+      "count": 50,
+      "median": 16.57119999435963,
+      "mean": 17.45161199971335,
+      "std": 3.2384022152218055,
+      "p95": 23.917755000002217,
+      "min": 13.546699992730282,
+      "max": 29.04189999389928
+    },
+    "3_classifier_onnx_cpu": {
+      "count": 50,
+      "median": 5.342949996702373,
+      "mean": 5.739840000169352,
+      "std": 1.5583449645824068,
+      "p95": 8.689785002934507,
+      "min": 4.005299997515976,
+      "max": 11.781599998357706
+    },
+    "3_classifier_onnx_wasm": {
+      "count": 30,
+      "median": 12.38435000000004,
+      "mean": 12.011170000000003,
+      "std": 1.534853005238489,
+      "p95": 13.573449999999957,
+      "min": 9.061199999999985,
+      "max": 15.049300000000017
+    },
+    "4_segmenter_patch_pytorch_gpu": {
+      "count": 50,
+      "median": 86.06849999341648,
+      "mean": 81.98341200011782,
+      "std": 8.21058094290175,
+      "p95": 86.54026000440354,
+      "min": 59.11089999426622,
+      "max": 86.76150000246707
+    },
+    "4_segmenter_patch_pytorch_cpu": {
+      "count": 25,
+      "median": 625.7350000087172,
+      "mean": 630.2079480007524,
+      "std": 54.81626858655139,
+      "p95": 694.1209000069648,
+      "min": 556.2084999983199,
+      "max": 814.5878000068478
+    },
+    "4_segmenter_patch_onnx_cpu": {
+      "count": 25,
+      "median": 229.17690000031143,
+      "mean": 240.14267600083258,
+      "std": 39.115536718777925,
+      "p95": 299.4470799952978,
+      "min": 198.7675999989733,
+      "max": 367.0060000004014
+    },
+    "4_segmenter_patch_onnx_wasm": {
+      "count": 20,
+      "median": 489.1594,
+      "mean": 501.14093999999994,
+      "std": 28.682662498108773,
+      "p95": 558.0623099999999,
+      "min": 464.72859999999946,
+      "max": 561.8188
+    },
+    "5_fullscene_tiled_segmentation_gpu": {
+      "count": 50,
+      "median": 1172.3032500085537,
+      "mean": 1239.2392220007605,
+      "std": 417.14354219399786,
+      "p95": 2197.937565006577,
+      "min": 657.332500006305,
+      "max": 2387.4371999991126
+    },
+    "5_fullscene_tiled_segmentation_cpu": {
+      "count": 3,
+      "median": 8368.639799999073,
+      "mean": 8406.796466665886,
+      "std": 125.01330243245638,
+      "p95": 8528.66151000344,
+      "min": 8305.30789999466,
+      "max": 8546.441700003925
+    },
+    "5b_segmentation_postprocessing": {
+      "count": 50,
+      "median": 6.612400007725228,
+      "mean": 6.645667999691796,
+      "std": 1.4471619091712151,
+      "p95": 8.815895006409844,
+      "min": 4.751499989652075,
+      "max": 12.085099995601922
+    },
+    "6_backward_drift_opendrift": {
+      "count": 0,
+      "status": "Unavailable",
+      "median": null,
+      "mean": null,
+      "std": null,
+      "p95": null
+    },
+    "7_ais_vessel_attribution": {
+      "count": 50,
+      "median": 0.15999999595806003,
+      "mean": 0.1799839988234453,
+      "std": 0.047994061305918746,
+      "p95": 0.2851250021194573,
+      "min": 0.13780000153928995,
+      "max": 0.30079999123699963
+    },
+    "8_end_to_end_pipeline_gpu": {
+      "count": 50,
+      "median": 1413.8632000103826,
+      "mean": 1483.92904400127,
+      "std": 411.61688988418945,
+      "p95": 2420.1362499872625,
+      "min": 886.6145000065444,
+      "max": 2602.5952999916626
+    }
+  },
+  "model_initialization_latencies_ms": {
+    "classifier_pytorch": 406.76,
+    "segmenter_pytorch": 239.75
+  },
+  "evaluation_metrics_on_test_sample": {
+    "mean_dice_score": 0.6810576845037839,
+    "mean_iou": 0.5552443463011817,
+    "mean_precision": 0.6443202864668698,
+    "mean_recall": 0.8892670459551013,
+    "evaluation_metric_overhead_median_ms": 109.8999000096228
+  },
+  "workload_summary": {
+    "total_scenes_processed": 50,
+    "total_elapsed_benchmark_seconds": 107.15,
+    "average_processing_time_per_scene_ms": 1483.92904400127
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "phase": 1,
+  "description": "Baseline metric reproduction for SpillSense oil spill pipeline",
+  "classifier_val_set": {
+    "source": "cls_val_v3_zenodo_gt_dualpol.npz",
+    "n_patches": 4818,
+    "checkpoint": "best_dualpol_classifier.pt",
+    "epoch": 7,
+    "threshold": 0.48999999999999994,
+    "device": "cuda",
+    "overall": {
+      "accuracy": 0.5205479452054794,
+      "precision": 0.9388686131386861,
+      "recall": 0.3144865525672372,
+      "f1": 0.47115384615384615,
+      "roc_auc": 0.6984546048324092,
+      "pr_auc": 0.5778402765264137,
+      "tp": 1029,
+      "tn": 1479,
+      "fp": 67,
+      "fn": 2243
+    },
+    "per_category": {
+      "clean": {
+        "count": 1082,
+        "tnr": 0.988909426987061,
+        "fpr": 0.011090573012939002,
+        "tn": 1070,
+        "fp": 12
+      },
+      "lookalike": {
+        "count": 389,
+        "tnr": 0.9305912596401028,
+        "fpr": 0.06940874035989718,
+        "tn": 362,
+        "fp": 27
+      },
+      "oil": {
+        "count": 3272,
+        "recall": 0.3144865525672372,
+        "tp": 1029,
+        "fn": 2243
+      },
+      "ship_wake": {
+        "count": 75,
+        "tnr": 0.6266666666666667,
+        "fpr": 0.37333333333333335,
+        "tn": 47,
+        "fp": 28
+      }
+    },
+    "inference_ms_total": 11415.07
+  },
+  "segmenter_curated_patches": {
+    "source": "best_segmenter_v3.pt (checkpoint embedded seg_metrics)",
+    "eval_domain": "curated_512x512_patches",
+    "checkpoint": "best_segmenter_v3.pt",
+    "epoch": 2,
+    "best_dice": 0.8278921006442292,
+    "iou": 0.7063275497923579,
+    "precision": 0.7987351317776809,
+    "recall": 0.8592584067151209,
+    "pixel_accuracy": 0.9528267768121534,
+    "tp": 1844039,
+    "fp": 464660,
+    "fn": 302043,
+    "tn": 13642186,
+    "fg_pixel_ratio": 0.13204,
+    "note": "Curated-patch Dice=0.828 vs full-scene macro Dice~0.68: difference driven by extreme class imbalance (~1:200 fg:bg) across full 2048x2048 scenes. Validation patches are oversampled 4x oil to reduce gap during training."
+  },
+  "benchmark_gallery": {
+    "source": "benchmark_gallery/benchmark_report.json",
+    "n_records": 40,
+    "threshold": 0.26999999999999996,
+    "per_category": {
+      "oil": {
+        "n": 10,
+        "tp": 10,
+        "fn": 0,
+        "recall": 1.0,
+        "mean_prob": 0.86936,
+        "min_prob": 0.5231
+      },
+      "clean": {
+        "n": 10,
+        "tn": 10,
+        "fp": 0,
+        "tnr": 1.0,
+        "fpr": 0.0,
+        "mean_prob": 0.09232
+      },
+      "lookalike": {
+        "n": 10,
+        "tn": 10,
+        "fp": 0,
+        "tnr": 1.0,
+        "fpr": 0.0,
+        "mean_prob": 0.03408
+      },
+      "ship_wake": {
+        "n": 10,
+        "tn": 9,
+        "fp": 1,
+        "tnr": 0.9,
+        "fpr": 0.1,
+        "mean_prob": 0.18973999999999996
+      }
+    }
+  },
+  "metric_domain_clarification": {
+    "cls_val": "4,818 patches from 217 held-out validation scenes (v3 Zenodo dataset). Evaluated with best_dualpol_classifier.pt (threshold=0.490). Most reliable classifier metric \u2014 genuinely held-out.",
+    "seg_patch": "Curated 512x512 oil-containing patches from Zenodo train/val scenes. Dice=0.828 reflects in-distribution patches with 4x oil oversampling. Not comparable to full-scene Dice.",
+    "seg_full_scene": "Full 2048x2048 scene tiled inference with 512x512/384 stride. Macro Dice~0.68 due to ~1:200 fg:bg class imbalance. Open-ocean speckle accumulates false positives, reducing precision to ~64-67%.",
+    "gallery": "40 benchmark patches from 4 scene categories. Uses best_classifier_v3.pt gallery-tuned model (threshold=0.10). NOT a held-out set \u2014 model was tuned to these scenes."
+  }
+}

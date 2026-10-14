@@ -1,0 +1,179 @@
+{
+  "threshold": 0.48999999999999994,
+  "classification_errors": {
+    "false_positives": {
+      "total": 67,
+      "rate": 0.04333764553686934,
+      "by_category": {
+        "clean": {
+          "fp": 12,
+          "total_negatives": 1082,
+          "fpr": 0.011090573012939002,
+          "mean_prob_on_fp": 0.6498099838693937,
+          "mean_prob_on_tn": 0.03875599947431995
+        },
+        "lookalike": {
+          "fp": 27,
+          "total_negatives": 389,
+          "fpr": 0.06940874035989718,
+          "mean_prob_on_fp": 0.8422823835302282,
+          "mean_prob_on_tn": 0.16085646362224007
+        },
+        "ship_wake": {
+          "fp": 28,
+          "total_negatives": 75,
+          "fpr": 0.37333333333333335,
+          "mean_prob_on_fp": 0.7209395457591329,
+          "mean_prob_on_tn": 0.2843773907961998
+        }
+      }
+    },
+    "false_negatives": {
+      "total": 2243,
+      "miss_rate": 0.6855134474327629,
+      "oil_recall": 0.3144865525672371,
+      "mean_prob_on_fn": 0.11262853494279011,
+      "mean_prob_on_tp": 0.885807779370522
+    },
+    "confusion": {
+      "tp": 1029,
+      "tn": 1479,
+      "fp": 67,
+      "fn": 2243,
+      "precision": 0.9388686131386861,
+      "recall": 0.3144865525672372,
+      "f1": 0.47115384615384615,
+      "accuracy": 0.5205479452054794
+    },
+    "confidence_analysis": {
+      "fp_prob_percentiles": {
+        "p25": 0.5793183743953705,
+        "p50": 0.7017219066619873,
+        "p75": 0.9994343221187592,
+        "p95": 1.0
+      },
+      "fn_prob_percentiles": {
+        "p25": 0.004762534750625491,
+        "p50": 0.06843733787536621,
+        "p75": 0.18019424378871918,
+        "p95": 0.3770645558834076
+      },
+      "threshold": 0.48999999999999994,
+      "note": "FN probs well below threshold indicate hard misses; near-threshold FNs may be recoverable."
+    },
+    "ship_wake_detail": {
+      "n_ship_wake_patches": 75,
+      "n_fp_as_oil": 28,
+      "ship_wake_fpr": 0.37333333333333335,
+      "mean_prob": 0.44736059531569483,
+      "prob_above_threshold": 0.37333333333333335,
+      "root_cause": "Ship wakes produce dark SAR stripes similar to oil. If vessel backscatter (bright target) is included in the patch along with the dark wake, the VV/VH ratio mimics oil texture. The model uses 10% ship_wake hard-negative sampling weight."
+    }
+  },
+  "segmentation_errors": {
+    "eval_domain": "curated_512x512_patches",
+    "pixel_counts": {
+      "tp": 1844039,
+      "fp": 464660,
+      "fn": 302043,
+      "tn": 13642186
+    },
+    "class_balance": {
+      "fg_pixels": 2146082,
+      "bg_pixels": 14106846,
+      "imbalance_ratio_bg_to_fg": 6.6
+    },
+    "error_rates": {
+      "false_positive_rate_of_bg": 0.0329,
+      "false_negative_rate_of_fg": 0.1407,
+      "fp_as_pct_of_total_errors": 60.6,
+      "fn_as_pct_of_total_errors": 39.4
+    },
+    "dice_gap_analysis": {
+      "curated_patch_dice": 0.8279,
+      "full_scene_macro_dice_estimate": 0.6811,
+      "gap": 0.1468,
+      "primary_driver": "In curated patches, oil pixels have 4x oversampling weight during training. In full 2048x2048 scenes, background dominates (~1:7 fg:bg). Open-ocean speckle + wind streaks cause FP accumulation in full-scene mode, reducing precision to ~64-67% while recall stays at ~88-89%."
+    },
+    "failure_modes": {
+      "mode_A_boundary_erosion": {
+        "description": "SpillSegNet produces smoothed probability maps. Oil slick boundaries are predicted with soft edges; hard thresholding at 0.5 systematically under-segments boundary rings. This is the primary source of FN pixels in curated patches.",
+        "evidence": "FN rate of foreground = 0.141",
+        "severity": "MEDIUM \u2014 reduces recall but is partially recoverable at lower threshold",
+        "recommended_fix": "Lower segmentation threshold to 0.35-0.45 or apply CRF post-processing"
+      },
+      "mode_B_speckle_fp": {
+        "description": "SAR speckle noise creates granular bright/dark variations. In full-scene inference the model accumulates FP predictions over vast open-ocean areas, lowering precision significantly. Curated patches show a milder FP rate because they are centred on oil scenes.",
+        "evidence": "FP rate of background pixels = 0.0329 (464,660 FP pixels)",
+        "severity": "HIGH in full-scene mode \u2014 drives the 0.82 \u2192 0.68 Dice drop",
+        "recommended_fix": "Add spatial Connected Component Analysis (CCA) post-processing: reject isolated blobs < 500 m\u00b2 equivalent pixel area. Alternatively, use Conditional Random Field (CRF) for contextual smoothing."
+      },
+      "mode_C_low_coverage_slicks": {
+        "description": "Very thin or diffuse spills with < 2% patch mask coverage. The model may detect the scene as oil (classifier) but produce very sparse segmentation probability, often below the threshold. These are the hardest cases in the Zenodo dataset.",
+        "evidence": "oil_00006 in gallery: gt_mask_coverage=0.0091, seg_mean_prob=0.0284",
+        "severity": "HIGH \u2014 missed spills represent the most dangerous failure mode operationally",
+        "recommended_fix": "Augment training with synthetic thin-slick samples. Use class-balanced Dice loss with higher FN penalty for sparse fg classes."
+      },
+      "mode_D_early_stopping": {
+        "description": "SpillSegNet stopped at epoch 2 (of 30). This is extremely early \u2014 the model is under-trained relative to its capacity. The segmenter has not converged: Dice=0.828 at epoch 2 would typically continue improving through epoch 15-20.",
+        "evidence": "best_segmenter_v3.pt: epoch=2, early_stopping_patience=6",
+        "severity": "CRITICAL \u2014 likely the single biggest opportunity for accuracy improvement",
+        "recommended_fix": "Investigate why training stopped at epoch 2. Possible causes: (1) Training Dice already above val Dice by epoch 2 \u2192 overfitting; (2) Learning rate too high \u2192 divergence after epoch 2; (3) Dataset pipeline issue causing empty batches. Run train_segmentation.py with reduced LR (1e-4) and longer patience (12 epochs)."
+      }
+    }
+  },
+  "gallery_failures": {
+    "total_scenes": 40,
+    "hard_failures": [
+      {
+        "scene_id": "ship_wake_00013_1536_1152",
+        "category": "ship_wake",
+        "type": "FP",
+        "cls_probability": 0.9519,
+        "gt_mask_coverage": 0.0,
+        "seg_mean_prob": 0.1058,
+        "analysis": "Ship wake misclassified as oil. Classifier probability=0.952 exceeds threshold. Dark wake + bright vessel produces a VV/VH polarization ratio consistent with oil-damped sea surface. This is a structural confusion between oil's surface-tension damping and wake's hydrodynamic damping."
+      }
+    ],
+    "near_threshold": [
+      {
+        "scene_id": "clean_00000_0_0",
+        "category": "clean",
+        "decision": "NON-OIL",
+        "prob": 0.2049,
+        "threshold": 0.26999999999999996,
+        "margin": -0.0651
+      },
+      {
+        "scene_id": "ship_wake_00014_1536_384",
+        "category": "ship_wake",
+        "decision": "NON-OIL",
+        "prob": 0.1905,
+        "threshold": 0.26999999999999996,
+        "margin": -0.0795
+      }
+    ],
+    "summary": {
+      "oil": {
+        "n": 10,
+        "n_correct": 10,
+        "accuracy": 1.0
+      },
+      "clean": {
+        "n": 10,
+        "n_correct": 10,
+        "accuracy": 1.0
+      },
+      "lookalike": {
+        "n": 10,
+        "n_correct": 10,
+        "accuracy": 1.0
+      },
+      "ship_wake": {
+        "n": 10,
+        "n_correct": 9,
+        "accuracy": 0.9
+      }
+    }
+  }
+}
