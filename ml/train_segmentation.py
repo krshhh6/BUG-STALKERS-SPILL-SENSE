@@ -142,8 +142,14 @@ def train_segmentation(config: SpillSenseConfig = CONFIG,
                        patience: Optional[int] = None,
                        epochs: Optional[int] = None,
                        out_suffix: str = "",
-                       seed: int = 42) -> Dict[str, Any]:
+                       seed: int = 42,
+                       resume: bool = False) -> Dict[str, Any]:
     """Main segmentation training pipeline."""
+    import sys
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except Exception:
+        pass
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -172,8 +178,20 @@ def train_segmentation(config: SpillSenseConfig = CONFIG,
         train_scenes = train_scenes[:300]
         val_scenes = val_scenes[:60]
 
-    tr_crops, tr_masks = build_cached_seg_split(train_scenes, "Train", config, oil_crops_per_scene=2, neg_crops_per_scene=1)
-    va_crops, va_masks = build_cached_seg_split(val_scenes, "Val", config, oil_crops_per_scene=2, neg_crops_per_scene=1)
+    cache_tag = f"seg_crops_{max_scenes}" if max_scenes else "seg_crops_all"
+    seg_cache_file = config.cache_dir / f"{cache_tag}.npz"
+    if seg_cache_file.exists():
+        print(f"[CACHE HIT] Loading cached segmentation crops from {seg_cache_file}...")
+        seg_data = np.load(seg_cache_file)
+        tr_crops, tr_masks = seg_data["tr_crops"], seg_data["tr_masks"]
+        va_crops, va_masks = seg_data["va_crops"], seg_data["va_masks"]
+    else:
+        print(f"[CACHE MISS] Extracting segmentation crops across {len(train_scenes)} train / {len(val_scenes)} val scenes...")
+        tr_crops, tr_masks = build_cached_seg_split(train_scenes, "Train", config, oil_crops_per_scene=2, neg_crops_per_scene=1)
+        va_crops, va_masks = build_cached_seg_split(val_scenes, "Val", config, oil_crops_per_scene=2, neg_crops_per_scene=1)
+        config.cache_dir.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(seg_cache_file, tr_crops=tr_crops, tr_masks=tr_masks, va_crops=va_crops, va_masks=va_masks)
+        print(f"[SAVED] Cached segmentation crops saved to {seg_cache_file}")
 
     train_ds = CachedSARSegmentationDataset(tr_crops, tr_masks, augment=True)
     val_ds = CachedSARSegmentationDataset(va_crops, va_masks, augment=False)
@@ -208,11 +226,30 @@ def train_segmentation(config: SpillSenseConfig = CONFIG,
     best_state = None
     patience_counter = 0
     history = []
+    start_epoch = 1
+
+    if resume and ckpt_path.exists():
+        print(f"[RESUME] Loading existing checkpoint from {ckpt_path}...")
+        ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model_state"])
+        best_epoch = ckpt.get("epoch", 0)
+        best_dice = float(ckpt.get("best_dice", 0.0))
+        best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+        start_epoch = best_epoch + 1
+        if history_path.exists():
+            try:
+                with open(history_path) as hf:
+                    history = json.load(hf).get("history", [])
+            except Exception:
+                pass
+        print(f"[RESUME] Resuming from epoch {start_epoch} (best Dice so far: {best_dice:.4f} at epoch {best_epoch})")
+        sys.stdout.flush()
 
     print(f"\n{'Ep':>3} | {'TrLoss':>7} | {'VLoss':>7} | {'VDice':>6} | {'VIoU':>6} | {'VPrec':>6} | {'VRec':>6} | {'LR':>8} | {'T':>4}")
     print("-" * 80)
+    sys.stdout.flush()
 
-    for epoch in range(1, config.seg_epochs + 1):
+    for epoch in range(start_epoch, seg_epochs + 1):
         t0 = time.time()
 
         # Train
@@ -286,6 +323,17 @@ def train_segmentation(config: SpillSenseConfig = CONFIG,
             "time_s": round(dt, 2)
         }
         history.append(epoch_record)
+        # Persist intermediate history curve
+        try:
+            with open(history_path, "w") as f:
+                json.dump({
+                    "candidate": ckpt_name,
+                    "best_epoch": best_epoch,
+                    "best_dice": float(best_dice),
+                    "history": history
+                }, f, indent=2)
+        except Exception:
+            pass
 
         if seg_m["dice"] > best_dice:
             best_dice = seg_m["dice"]
@@ -355,6 +403,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-scenes", type=int, default=120, help="Scene count (default 120, matching baseline split)")
     parser.add_argument("--out-suffix", type=str, default="", help="Checkpoint name suffix (e.g. _exp1_lr1e4)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--resume", action="store_true", help="Resume from existing checkpoint if available")
     args = parser.parse_args()
 
     train_segmentation(
@@ -363,5 +412,6 @@ if __name__ == "__main__":
         epochs=args.epochs,
         max_scenes=args.max_scenes,
         out_suffix=args.out_suffix,
-        seed=args.seed
+        seed=args.seed,
+        resume=args.resume
     )

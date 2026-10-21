@@ -285,8 +285,14 @@ def train(config: SpillSenseConfig = CONFIG, force_rebuild: bool = False,
           sample_weight_clean: Optional[float] = None,
           sample_weight_ship_wake: Optional[float] = None,
           out_suffix: str = "",
-          seed: int = 42) -> Dict[str, Any]:
+          seed: int = 42,
+          resume: bool = False) -> Dict[str, Any]:
     """Main classifier training pipeline."""
+    import sys
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except Exception:
+        pass
     set_seed(seed)
     device = config.get_device()
 
@@ -387,11 +393,31 @@ def train(config: SpillSenseConfig = CONFIG, force_rebuild: bool = False,
     best_state = None
     patience_counter = 0
     history = []
+    start_epoch = 1
+
+    if resume and ckpt_path.exists():
+        print(f"[RESUME] Loading existing checkpoint from {ckpt_path}...")
+        ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model_state"])
+        best_epoch = ckpt.get("epoch", 0)
+        best_score = ckpt.get("best_score", 0.0)
+        best_threshold = ckpt.get("best_threshold", 0.50)
+        best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+        start_epoch = best_epoch + 1
+        if history_path.exists():
+            try:
+                with open(history_path) as hf:
+                    history = json.load(hf).get("history", [])
+            except Exception:
+                pass
+        print(f"[RESUME] Resuming from epoch {start_epoch} (best score so far: {best_score:.4f} at epoch {best_epoch})")
+        sys.stdout.flush()
 
     print(f"\n{'Ep':>3} | {'TrLoss':>7} | {'VLoss':>7} | {'VF1':>6} | {'VRec':>6} | {'VPrec':>6} | {'Thr':>5} | {'WkFPR':>5} | {'LkTNR':>5} | {'LR':>8} | {'T':>4}")
     print("-" * 95)
+    sys.stdout.flush()
 
-    for epoch in range(1, train_epochs + 1):
+    for epoch in range(start_epoch, train_epochs + 1):
         t0 = time.time()
         tr_loss = train_one_epoch(model, train_loader, criterion, optimizer, scaler,
                                   device, config.use_amp)
@@ -435,6 +461,17 @@ def train(config: SpillSenseConfig = CONFIG, force_rebuild: bool = False,
             "time_s": round(dt, 2)
         }
         history.append(epoch_record)
+        # Persist intermediate history curve
+        try:
+            with open(history_path, "w") as f:
+                json.dump({
+                    "candidate": ckpt_name,
+                    "best_epoch": best_epoch,
+                    "best_threshold": float(best_threshold),
+                    "history": history
+                }, f, indent=2)
+        except Exception:
+            pass
 
         if opt_score > best_score:
             best_score = opt_score
@@ -564,6 +601,7 @@ if __name__ == "__main__":
     parser.add_argument("--sample-weight-ship-wake", type=float, default=None, help="Sampling weight for ship_wake")
     parser.add_argument("--out-suffix", type=str, default="", help="Checkpoint suffix (e.g. _exp1_loss_alpha05)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--resume", action="store_true", help="Resume from existing checkpoint if available")
     args = parser.parse_args()
 
     train(
@@ -579,5 +617,6 @@ if __name__ == "__main__":
         sample_weight_clean=args.sample_weight_clean,
         sample_weight_ship_wake=args.sample_weight_ship_wake,
         out_suffix=args.out_suffix,
-        seed=args.seed
+        seed=args.seed,
+        resume=args.resume
     )
