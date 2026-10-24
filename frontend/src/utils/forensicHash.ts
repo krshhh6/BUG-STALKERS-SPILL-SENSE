@@ -1,28 +1,85 @@
 import type { Scenario } from '../types/dashboard';
 
 /**
- * Deterministically generates a 64-character SHA-256 style hex hash from an input string.
+ * Generates an authentic, standard FIPS 180-4 SHA-256 64-character hexadecimal hash.
+ * Synchronous and bit-for-bit identical to OpenSSL sha256 and Web Crypto API.
  */
-export function generateDeterministicHash(seed: string): string {
-  let h1 = 0xdeadbeef ^ seed.length;
-  let h2 = 0x41c6ce57 ^ seed.length;
-  let h3 = 0x811c9dc5 ^ seed.length;
-  let h4 = 0x9e3779b9 ^ seed.length;
+export function generateDeterministicHash(ascii: string): string {
+  function rightRotate(value: number, amount: number): number {
+    return (value >>> amount) | (value << (32 - amount));
+  }
+  const mathPow = Math.pow;
+  const maxWord = mathPow(2, 32);
+  let i: number;
+  let j: number;
+  let result = '';
+  const words: number[] = [];
+  const asciiBitLength = ascii.length * 8;
+  const hash: number[] = [];
+  const k: number[] = [];
+  let primeCounter = 0;
+  const isComposite: Record<number, number> = {};
 
-  for (let i = 0; i < seed.length; i++) {
-    const ch = seed.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
-    h3 = Math.imul(h3 ^ ch, 3812015801);
-    h4 = Math.imul(h4 ^ ch, 2166136261);
+  for (let candidate = 2; primeCounter < 64; candidate++) {
+    if (!isComposite[candidate]) {
+      for (i = 0; i < 313; i += candidate) {
+        isComposite[i] = candidate;
+      }
+      hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0;
+      k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+    }
   }
 
-  const toHex8 = (n: number) => (n >>> 0).toString(16).padStart(8, '0');
-  
-  // Create 64 hex characters (8 x 8)
-  const part1 = toHex8(h1) + toHex8(h2) + toHex8(h3) + toHex8(h4);
-  const part2 = toHex8(h2 ^ h3) + toHex8(h1 ^ h4) + toHex8(h3 ^ 0xabcdef) + toHex8(h4 ^ 0x123456);
-  return (part1 + part2).toLowerCase();
+  let formatted = ascii + '\x80';
+  while ((formatted.length % 64) - 56) formatted += '\x00';
+  for (i = 0; i < formatted.length; i++) {
+    j = formatted.charCodeAt(i);
+    words[i >> 2] |= j << ((3 - (i % 4)) * 8);
+  }
+  words[words.length] = (asciiBitLength / maxWord) | 0;
+  words[words.length] = asciiBitLength;
+
+  for (j = 0; j < words.length; ) {
+    const w = words.slice(j, (j += 16));
+    const oldHash = [...hash];
+    for (i = 0; i < 64; i++) {
+      const w15 = w[i - 15];
+      const w2 = w[i - 2];
+      const a = hash[0];
+      const e = hash[4];
+      const s0 = rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3);
+      const s1 = rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10);
+      w[i] = (i < 16 ? w[i] : (w[i - 16] + s0 + w[i - 7] + s1) | 0) | 0;
+
+      const ch = (e & hash[5]) ^ (~e & hash[6]);
+      const maj = (a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]);
+      const sigma1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
+      const sigma0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
+
+      const temp1 = (hash[7] + sigma1 + ch + k[i] + w[i]) | 0;
+      const temp2 = (sigma0 + maj) | 0;
+
+      hash[7] = hash[6];
+      hash[6] = hash[5];
+      hash[5] = hash[4];
+      hash[4] = (hash[3] + temp1) | 0;
+      hash[3] = hash[2];
+      hash[2] = hash[1];
+      hash[1] = hash[0];
+      hash[0] = (temp1 + temp2) | 0;
+    }
+    for (i = 0; i < 8; i++) {
+      hash[i] = (hash[i] + oldHash[i]) | 0;
+    }
+  }
+
+  for (i = 0; i < 8; i++) {
+    for (j = 3; j >= 0; j--) {
+      const b = (hash[i] >> (j * 8)) & 255;
+      result += (b < 16 ? '0' : '') + b.toString(16);
+    }
+  }
+  return result;
 }
 
 /**

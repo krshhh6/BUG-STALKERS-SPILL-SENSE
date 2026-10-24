@@ -5,6 +5,7 @@
  */
 
 import type { LiveIncident } from '../hooks/useIncidents';
+import type { GeoBounds } from '../utils/tiffDecoder';
 
 export interface CalculatedSpillAnalytics {
   incidentId: string;
@@ -33,6 +34,7 @@ export interface CalculatedSpillAnalytics {
   locationName: string;
   rawImage?: string;
   maskImage?: string;
+  geoBounds?: GeoBounds;
 }
 
 export function computeSpillAnalyticsFromDetection(params: {
@@ -42,6 +44,8 @@ export function computeSpillAnalyticsFromDetection(params: {
   imageUrl?: string;
   maskUrl?: string;
   customCoords?: { lat: number; lng: number };
+  geoBounds?: GeoBounds;
+  locationName?: string;
 }): CalculatedSpillAnalytics {
   const conf = params.confidence || 0.95;
   const coverage =
@@ -123,8 +127,25 @@ export function computeSpillAnalyticsFromDetection(params: {
     ? params.imageName.replace(/\.[^/.]+$/, '').replace(/_/g, ' ')
     : 'Uploaded SAR Scene';
 
-  const defaultLat = params.customCoords?.lat ?? 18.820;
-  const defaultLng = params.customCoords?.lng ?? 71.180;
+  const resolvedLat = params.customCoords?.lat ?? params.geoBounds?.centerLat ?? 18.820;
+  const resolvedLng = params.customCoords?.lng ?? params.geoBounds?.centerLng ?? 71.180;
+
+  let locName = params.locationName;
+  if (!locName) {
+    if (resolvedLng > 79.5 && resolvedLng < 82.5 && resolvedLat > 11.5 && resolvedLat < 15.0) {
+      locName = 'Bay of Bengal EEZ · Chennai–Ennore Corridor';
+    } else if (resolvedLng > 72.5 && resolvedLng < 74.5 && resolvedLat > 14.5 && resolvedLat < 16.5) {
+      locName = 'Arabian Sea EEZ · Goa Offshore Fairway';
+    } else if (resolvedLng > 91.0 && resolvedLat < 14.0) {
+      locName = 'Andaman Sea · Malacca Strait Corridor';
+    } else if (resolvedLng > 70.0 && resolvedLng < 73.5 && resolvedLat > 17.5 && resolvedLat < 20.5) {
+      locName = 'Arabian Sea EEZ · Mumbai High Corridor';
+    } else if (params.geoBounds?.isGeoreferenced) {
+      locName = `Calibrated SAR Scene (${resolvedLat.toFixed(3)}°N, ${resolvedLng.toFixed(3)}°E)`;
+    } else {
+      locName = 'Arabian Sea EEZ · Mumbai High Corridor';
+    }
+  }
 
   const randId = Math.floor(100 + Math.random() * 900);
   const incidentId = `INC-SAR-${randId}`;
@@ -151,11 +172,12 @@ export function computeSpillAnalyticsFromDetection(params: {
     meanDampingDb,
     swirRatio,
     surfaceTensionMnM,
-    lat: defaultLat,
-    lng: defaultLng,
-    locationName: 'Arabian Sea EEZ · Mumbai High Corridor',
+    lat: resolvedLat,
+    lng: resolvedLng,
+    locationName: locName,
     rawImage: params.imageUrl,
     maskImage: params.maskUrl,
+    geoBounds: params.geoBounds,
   };
 }
 

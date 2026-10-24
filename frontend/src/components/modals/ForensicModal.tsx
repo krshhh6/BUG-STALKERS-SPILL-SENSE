@@ -33,6 +33,17 @@ export const ForensicModal: React.FC<ForensicModalProps> = ({ isOpen, onClose, s
             </span>
           </div>
           <div className="flex items-center gap-2 modal-actions">
+            <a
+              href={`http://127.0.0.1:8000/api/v1/dossier/${scenario.id || 'INC-001'}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="action-pill-btn secondary"
+              title="Download Authenticated ReportLab Binary PDF from Backend API"
+              style={{ padding: '4px 12px', fontSize: 11, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>download</span>
+              Download Signed PDF
+            </a>
             <button
               className="action-pill-btn primary"
               onClick={() => window.print()}
