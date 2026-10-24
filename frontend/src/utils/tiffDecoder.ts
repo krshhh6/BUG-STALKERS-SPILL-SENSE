@@ -1,5 +1,16 @@
 import * as GeoTIFF from 'geotiff';
 
+export interface GeoBounds {
+  minLon: number;
+  minLat: number;
+  maxLon: number;
+  maxLat: number;
+  centerLat: number;
+  centerLng: number;
+  isGeoreferenced: boolean;
+  crs?: string;
+}
+
 export interface DecodedTiffResult {
   dataUrl: string;
   width: number;
@@ -8,6 +19,7 @@ export interface DecodedTiffResult {
   formatDescription: string;
   vvRaster?: Float32Array;
   vhRaster?: Float32Array;
+  geoBounds?: GeoBounds;
 }
 
 /**
@@ -232,6 +244,7 @@ export async function decodeTiffFile(file: File | Blob): Promise<DecodedTiffResu
 
   ctx.putImageData(imgData, 0, 0);
   const dataUrl = canvas.toDataURL('image/png');
+  const geoBounds = extractGeoBounds(image, originalWidth, originalHeight);
 
   return {
     dataUrl,
@@ -240,6 +253,158 @@ export async function decodeTiffFile(file: File | Blob): Promise<DecodedTiffResu
     bands: samplesPerPixel,
     formatDescription,
     vvRaster: vvNormBuffer,
-    vhRaster: vhNormBuffer
+    vhRaster: vhNormBuffer,
+    geoBounds,
   };
+}
+
+function utmToLatLon(easting: number, northing: number, zone: number, northernHemisphere = true): [number, number] {
+  const a = 6378137.0;
+  const f = 1 / 298.257223563;
+  const b = a * (1 - f);
+  const e = Math.sqrt(1 - (b * b) / (a * a));
+  const ePrimeSq = (e * e) / (1 - e * e);
+  const k0 = 0.9996;
+
+  const x = easting - 500000;
+  const y = northernHemisphere ? northing : northing - 10000000;
+
+  const m = y / k0;
+  const mu = m / (a * (1 - (e * e) / 4 - (3 * e * e * e * e) / 64 - (5 * e * e * e * e * e * e) / 256));
+
+  const e1 = (1 - Math.sqrt(1 - e * e)) / (1 + Math.sqrt(1 - e * e));
+  const j1 = (3 * e1) / 2 - (27 * e1 * e1 * e1) / 32;
+  const j2 = (21 * e1 * e1) / 16 - (55 * e1 * e1 * e1 * e1) / 32;
+  const j3 = (151 * e1 * e1 * e1) / 96;
+
+  const fp = mu + j1 * Math.sin(2 * mu) + j2 * Math.sin(4 * mu) + j3 * Math.sin(6 * mu);
+
+  const c1 = ePrimeSq * Math.cos(fp) * Math.cos(fp);
+  const t1 = Math.tan(fp) * Math.tan(fp);
+  const n1 = a / Math.sqrt(1 - (e * Math.sin(fp)) ** 2);
+  const r1 = (a * (1 - e * e)) / (Math.sqrt(1 - (e * Math.sin(fp)) ** 2) ** 3);
+  const d = x / (n1 * k0);
+
+  let lat = fp - (n1 * Math.tan(fp) / r1) * (
+    (d * d) / 2 -
+    ((5 + 3 * t1 + 10 * c1 - 4 * c1 * c1 - 9 * ePrimeSq) * (d ** 4)) / 24
+  );
+  lat = (lat * 180) / Math.PI;
+
+  let lon = (
+    d -
+    ((1 + 2 * t1 + c1) * (d ** 3)) / 6 +
+    ((5 - 2 * c1 + 28 * t1 - 3 * c1 * c1 + 8 * ePrimeSq + 24 * t1 * t1) * (d ** 5)) / 120
+  ) / Math.cos(fp);
+  lon = ((zone - 1) * 6 - 180 + 3) + (lon * 180) / Math.PI;
+
+  return [lat, lon];
+}
+
+function extractGeoBounds(image: any, width: number, height: number): GeoBounds | undefined {
+  try {
+    let minX: number | null = null;
+    let minY: number | null = null;
+    let maxX: number | null = null;
+    let maxY: number | null = null;
+
+    if (typeof image.getBoundingBox === 'function') {
+      const bbox = image.getBoundingBox();
+      if (Array.isArray(bbox) && bbox.length >= 4 && bbox.every((v: any) => typeof v === 'number' && Number.isFinite(v))) {
+        [minX, minY, maxX, maxY] = bbox;
+      }
+    }
+
+    if (minX === null && typeof image.getOrigin === 'function' && typeof image.getResolution === 'function') {
+      const origin = image.getOrigin();
+      const res = image.getResolution();
+      if (origin && res && origin.length >= 2 && res.length >= 2) {
+        const ox = origin[0];
+        const oy = origin[1];
+        const rx = res[0];
+        const ry = res[1];
+        if (typeof ox === 'number' && typeof oy === 'number' && typeof rx === 'number' && typeof ry === 'number') {
+          minX = ox;
+          maxY = oy;
+          maxX = ox + rx * width;
+          minY = oy - Math.abs(ry) * height;
+        }
+      }
+    }
+
+    const fileDir = image.fileDirectory || {};
+    if (minX === null && fileDir.ModelTiepoint && fileDir.ModelPixelScale) {
+      const tp = fileDir.ModelTiepoint;
+      const ps = fileDir.ModelPixelScale;
+      if (tp.length >= 6 && ps.length >= 2) {
+        const tpx = tp[3];
+        const tpy = tp[4];
+        const psx = ps[0];
+        const psy = ps[1];
+        if (typeof tpx === 'number' && typeof tpy === 'number' && typeof psx === 'number' && typeof psy === 'number') {
+          minX = tpx;
+          maxY = tpy;
+          maxX = tpx + psx * width;
+          minY = tpy - psy * height;
+        }
+      }
+    }
+
+    if (minX === null || minY === null || maxX === null || maxY === null) {
+      return undefined;
+    }
+
+    const geoKeys = (typeof image.getGeoKeys === 'function' ? image.getGeoKeys() : image.geoKeys) || {};
+    const projCode = geoKeys.ProjectedCSTypeGeoKey || geoKeys.ProjectionGeoKey;
+    const geoCode = geoKeys.GeographicTypeGeoKey;
+
+    let minLon = minX;
+    let maxLon = maxX;
+    let minLat = minY;
+    let maxLat = maxY;
+
+    // Check if bounds are in WGS84 degree space [-180, 180], [-90, 90]
+    const isDegree = minX >= -180 && maxX <= 180 && minY >= -90 && maxY <= 90;
+
+    if (!isDegree) {
+      // Projected coordinates (e.g. UTM)
+      let zone = 43; // Default Indian Ocean / Arabian Sea UTM zone
+      let north = true;
+
+      if (projCode) {
+        if (projCode >= 32601 && projCode <= 32660) {
+          zone = projCode - 32600;
+          north = true;
+        } else if (projCode >= 32701 && projCode <= 32760) {
+          zone = projCode - 32700;
+          north = false;
+        }
+      }
+
+      const [lat1, lon1] = utmToLatLon(minX, minY, zone, north);
+      const [lat2, lon2] = utmToLatLon(maxX, maxY, zone, north);
+
+      minLat = Math.min(lat1, lat2);
+      maxLat = Math.max(lat1, lat2);
+      minLon = Math.min(lon1, lon2);
+      maxLon = Math.max(lon1, lon2);
+    }
+
+    const centerLat = Math.round(((minLat + maxLat) / 2) * 100000) / 100000;
+    const centerLng = Math.round(((minLon + maxLon) / 2) * 100000) / 100000;
+
+    return {
+      minLon: Math.round(minLon * 100000) / 100000,
+      minLat: Math.round(minLat * 100000) / 100000,
+      maxLon: Math.round(maxLon * 100000) / 100000,
+      maxLat: Math.round(maxLat * 100000) / 100000,
+      centerLat,
+      centerLng,
+      isGeoreferenced: true,
+      crs: projCode ? `EPSG:${projCode}` : (geoCode ? `EPSG:${geoCode}` : 'EPSG:4326'),
+    };
+  } catch (err) {
+    console.warn('[tiffDecoder] GeoKey parsing fallback warning:', err);
+    return undefined;
+  }
 }

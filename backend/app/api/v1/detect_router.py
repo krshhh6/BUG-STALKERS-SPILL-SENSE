@@ -33,7 +33,54 @@ tiled_engine = TiledSARInferenceEngine(segmentation_engine=segmentation_engine)
 
 
 # Asynchronous job store
-DETECTION_JOBS: Dict[str, Dict[str, Any]] = {}
+class BoundedJobStore(dict):
+    """Bounded in-memory job store (maximum 100 entries with FIFO eviction) to prevent memory leaks."""
+    def __init__(self, maxsize=100, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.maxsize = maxsize
+
+    def __setitem__(self, key, value):
+        if len(self) >= self.maxsize and key not in self:
+            oldest_key = next(iter(self))
+            del self[oldest_key]
+        super().__setitem__(key, value)
+
+DETECTION_JOBS: Dict[str, Dict[str, Any]] = BoundedJobStore(maxsize=100)
+
+def _resolve_safe_raster_path(file_path: str) -> Path:
+    """
+    Safely resolves a file path parameter, restricting access strictly to
+    approved project data/demo folders to prevent directory traversal.
+    """
+    project_root = Path(__file__).resolve().parents[4]
+    allowed_dirs = [
+        (project_root / "frontend" / "public" / "demo-sar").resolve(),
+        (project_root / "frontend" / "public").resolve(),
+        (project_root / "ml" / "benchmark_gallery").resolve(),
+        (project_root / "ml" / "data").resolve(),
+        (project_root / "backend" / "data").resolve(),
+        (project_root / "backend" / "storage").resolve(),
+    ]
+
+    target = Path(file_path)
+    if not target.is_absolute():
+        resolved = (project_root / target).resolve()
+    else:
+        resolved = target.resolve()
+
+    is_safe = any(
+        resolved == allowed_dir or allowed_dir in resolved.parents
+        for allowed_dir in allowed_dirs
+    )
+    if not is_safe:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: path is outside approved raster directories."
+        )
+    if not resolved.exists() or not resolved.is_file():
+        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+    return resolved
 
 class DetectionRequest(BaseModel):
     aoi: Optional[Dict[str, Any]] = Field(
@@ -83,6 +130,17 @@ def _execute_detection(req: DetectionRequest) -> Dict[str, Any]:
 
     # Pull calibrated SAR backscatter tile
     vv_arr, vh_arr, cal_factor = cdse.fetch_sar_backscatter_tile(bbox, scene_info, grid_size=(256, 256))
+
+    if vv_arr is None or vh_arr is None:
+        return {
+            "status": "no_pass_available",
+            "message": "No live Sentinel-1 C-SAR IW GRD pass available for the specified AOI and lookback window.",
+            "aoi": req.aoi,
+            "polygons": [],
+            "total_detected_area_km2": 0.0,
+            "model_version": segmentation_engine.MODEL_VERSION,
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
+        }
 
     # Preprocessing Pipeline:
     # 1. Radiometric calibration to sigma0 (dB)
@@ -208,9 +266,7 @@ async def inspect_uploaded_image(
         raw_bytes = await file.read()
         filename = file.filename or filename
     elif file_path:
-        p = Path(file_path)
-        if not p.exists():
-            raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+        p = _resolve_safe_raster_path(file_path)
         raw_bytes = p.read_bytes()
         filename = p.name
     else:
@@ -251,9 +307,7 @@ async def detect_spill_from_raster(
         raw_bytes = await file.read()
         filename = file.filename or filename
     elif file_path:
-        p = Path(file_path)
-        if not p.exists():
-            raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+        p = _resolve_safe_raster_path(file_path)
         raw_bytes = p.read_bytes()
         filename = p.name
     else:
