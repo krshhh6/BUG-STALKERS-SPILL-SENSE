@@ -27,6 +27,15 @@ interface CandidateVesselItem {
   time_delta_hours?: number;
   attribution_score: number;
   risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  dark_vessel_suspect?: boolean;
+  trajectory?: Array<{
+    lat: number;
+    lng: number;
+    sog?: number;
+    cog?: number;
+    timestamp?: number;
+    time_iso?: string;
+  }>;
   metrics?: {
     spatial_match_pct: number;
     temporal_alignment_pct: number;
@@ -586,6 +595,7 @@ export const AttributionView: React.FC<AttributionViewProps> = ({
     service: string;
     vessels?: any[];
   } | null>(null);
+  const [historicalCandidates, setHistoricalCandidates] = useState<CandidateVesselItem[]>([]);
 
   const computeDistanceNm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     if (!lat1 || !lon1 || !lat2 || !lon2) return 10.0;
@@ -603,6 +613,27 @@ export const AttributionView: React.FC<AttributionViewProps> = ({
   const fetchLiveAIS = async () => {
     setIsLoading(true);
     try {
+      // 1. Query 4D Historical Trajectory Buffer for discharge origin envelope
+      const targetOriginLat = activeDriftSimulation?.originCoordNumeric?.[0]
+        ?? (sarDriftPayload?.lat ? sarDriftPayload.lat - 0.08 : (activeScenario?.lat ? activeScenario.lat - 0.08 : 18.663));
+      const targetOriginLng = activeDriftSimulation?.originCoordNumeric?.[1]
+        ?? (sarDriftPayload?.lng ? sarDriftPayload.lng - 0.06 : (activeScenario?.lng ? activeScenario.lng - 0.06 : 71.158));
+
+      try {
+        const histRes = await fetch(
+          `/api/v1/ais/historical-candidates?incident_id=${encodeURIComponent(incidentId)}&origin_lat=${targetOriginLat}&origin_lng=${targetOriginLng}&horizon_hours=24`
+        );
+        if (histRes.ok && histRes.headers.get('content-type')?.includes('application/json')) {
+          const hData = await histRes.json();
+          if (hData?.candidates && hData.candidates.length > 0) {
+            setHistoricalCandidates(hData.candidates);
+            setFeedSource('4D Historical Trajectory Buffer (Indexed Intercept)');
+          }
+        }
+      } catch {
+        // silent fallback
+      }
+
       const lat = activeScenario?.lat || 18.743;
       const lng = activeScenario?.lng || 71.218;
       const userParam = aishubUsername ? `&username=${encodeURIComponent(aishubUsername)}` : '';
@@ -744,8 +775,10 @@ export const AttributionView: React.FC<AttributionViewProps> = ({
 
   // FORENSIC INCIDENT SUSPECTS (For Active Spill AOI)
   const candidates: CandidateVesselItem[] = useMemo(() => {
-    // Scenario-specific suspects evaluated in forensic envelope
-    const scenarioSuspects = (DEFAULT_SCENARIO_VESSELS[incidentId] || DEFAULT_SCENARIO_VESSELS['INC-2026-001'] || []).map(v => ({ ...v }));
+    // Scenario-specific suspects: prioritize authentic 4D historical trajectory candidates from backend
+    const scenarioSuspects = (historicalCandidates.length > 0)
+      ? historicalCandidates.map(v => ({ ...v }))
+      : (DEFAULT_SCENARIO_VESSELS[incidentId] || DEFAULT_SCENARIO_VESSELS['INC-2026-001'] || []).map(v => ({ ...v }));
 
     // Target discharge coordinates: preferentially use the dynamic reverse-drift origin coordinate (T-24h)!
     const targetOriginLat = activeDriftSimulation?.originCoordNumeric?.[0]

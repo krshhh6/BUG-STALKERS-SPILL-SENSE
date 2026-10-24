@@ -57,6 +57,10 @@ class TestSARImageIntelligence(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.temp_dir, ignore_errors=True)
 
+    def tearDown(self):
+        import gc
+        gc.collect()
+
     # ─────────────────────────────────────────────────────────────────────────
     # 1. GeoTIFF Reading and Metadata Extraction
     # ─────────────────────────────────────────────────────────────────────────

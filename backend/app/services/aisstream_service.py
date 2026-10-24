@@ -59,6 +59,12 @@ class AISStreamService:
         self._is_running = False
         self._task = None
         self._initialized = True
+        try:
+            from app.services.ais_history_service import AISTrajectoryBuffer
+            self.trajectory_buffer = AISTrajectoryBuffer.get_instance()
+        except Exception as e:
+            logger.warning(f"[AISStream] Trajectory buffer init error: {e}")
+            self.trajectory_buffer = None
         logger.info("AISStreamService initialized.")
 
     def start_background_stream(self, loop=None):
@@ -178,6 +184,24 @@ class AISStreamService:
 
         is_tanker = any(t in v_type.lower() for t in ["tanker", "crude", "oil", "gas", "lng", "lpg", "chemical", "bunker"])
         nav_status = f"Underway ({sog:.1f} kn)" if sog >= 0.5 else "Moored / At Anchor"
+
+        # Persist to rolling trajectory buffer with kinematic downsampling
+        if getattr(self, "trajectory_buffer", None):
+            try:
+                self.trajectory_buffer.ingest_packet(
+                    mmsi=mmsi,
+                    name=name,
+                    imo=str(meta.get("IMO") or static_data.get("ImoNumber") or existing.get("imo") or "N/A"),
+                    flag="International",
+                    ship_type=v_type,
+                    is_tanker=is_tanker,
+                    lat=f_lat,
+                    lon=f_lon,
+                    sog=sog,
+                    cog=cog
+                )
+            except Exception as e:
+                logger.debug(f"[AISStream] Buffer ingest error: {e}")
 
         is_new = mmsi not in self._vessels
         self._vessels[mmsi] = {

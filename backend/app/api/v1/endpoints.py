@@ -258,6 +258,23 @@ async def run_drift_simulation(req: DriftRequest, db: Session = Depends(get_db))
         ]
     }
 
+    # 4D Historical Trajectory Intercept Query against the reconstructed origin envelope
+    historical_candidates = []
+    try:
+        from app.services.ais_history_service import AISTrajectoryBuffer
+        buf = AISTrajectoryBuffer.get_instance()
+        now_ts = datetime.utcnow().timestamp()
+        t_discharge = now_ts - (req.horizon_hours * 3600.0)
+        historical_candidates = buf.query_historical_candidates(
+            origin_lat=origin_lat,
+            origin_lon=origin_lon,
+            start_time=t_discharge - 7200.0,
+            end_time=t_discharge + 7200.0,
+            radius_nm=35.0
+        )
+    except Exception as hist_err:
+        historical_candidates = []
+
     task_id = f"drift-{uuid.uuid4()}"
 
     return {
@@ -270,6 +287,7 @@ async def run_drift_simulation(req: DriftRequest, db: Session = Depends(get_db))
         "particle_count": req.particle_count,
         "horizon_hours": req.horizon_hours,
         "drift_vector": kinematic["drift_vector"],
+        "historical_candidates": historical_candidates,
         "message": f"Backward drift simulation completed: origin reconstructed at ({origin_lat:.4f}°N, {origin_lon:.4f}°E)."
     }
 
