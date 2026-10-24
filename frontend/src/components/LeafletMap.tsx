@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import type { Scenario, BaseLayerType, CopernicusLayerId, DetectionResult } from '../types/dashboard';
+import type { Scenario, BaseLayerType, CopernicusLayerId, DetectionResult, SarDriftPayload } from '../types/dashboard';
+import type { LiveSimulationResult } from '../services/marineWeatherService';
 import { SCENARIOS } from '../data/scenarios';
 import { computeBackwardDriftGeometry, getRealisticAISTrack, sogToColor, interpolateKinematicsAtHour } from '../utils/geoContours';
 import { getScenarioBenchmarkDetections } from '../services/detectionService';
@@ -30,6 +31,8 @@ interface LeafletMapProps {
     sub?: string;
     category?: string;
   } | null;
+  sarDriftPayload?: SarDriftPayload | null;
+  activeDriftSimulation?: LiveSimulationResult | null;
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -50,6 +53,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   mapRef,
   scenarios,
   targetLocation,
+  sarDriftPayload,
+  activeDriftSimulation,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const baseLayersRef = useRef<Record<string, L.TileLayer>>({});
@@ -924,7 +929,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           ? detectionResult.polygons
           : getScenarioBenchmarkDetections(centerLat, centerLng);
       const primarySlick = activePolygons[0];
-      const driftGeo = computeBackwardDriftGeometry(scenario.id, primarySlick.slick_centroid);
+      const targetCentroid: [number, number] = sarDriftPayload
+        ? [sarDriftPayload.lat, sarDriftPayload.lng]
+        : primarySlick.slick_centroid;
+      const driftGeo = computeBackwardDriftGeometry(scenario.id, targetCentroid, activeDriftSimulation);
 
       // A. PAST: 90%, 75%, 50% Reconstructed Discharge Origin Envelopes
       const poly90 = L.polygon(driftGeo.envelope90, {

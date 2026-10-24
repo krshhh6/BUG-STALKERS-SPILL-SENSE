@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { TabType, SarDriftPayload } from './types/dashboard';
+import type { LiveSimulationResult } from './services/marineWeatherService';
 import { SCENARIOS } from './data/scenarios';
 import { useIncidents, type LiveIncident } from './hooks/useIncidents';
 import { Topbar } from './components/Topbar';
@@ -41,6 +42,7 @@ export const App: React.FC = () => {
     category?: string;
   } | null>(null);
   const [sarDriftPayload, setSarDriftPayload] = useState<SarDriftPayload | null>(null);
+  const [activeDriftSimulation, setActiveDriftSimulation] = useState<LiveSimulationResult | null>(null);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
 
   useEffect(() => {
@@ -281,6 +283,8 @@ export const App: React.FC = () => {
               isFullscreen={isMapFullscreen}
               onToggleFullscreen={() => setIsMapFullscreen((prev) => !prev)}
               targetLocation={targetLocation}
+              sarDriftPayload={sarDriftPayload}
+              activeDriftSimulation={activeDriftSimulation}
             />
           )}
 
@@ -290,6 +294,7 @@ export const App: React.FC = () => {
               currentScenario={scenario}
               onSelectScenario={handleSelectScenario}
               sarDriftPayload={sarDriftPayload}
+              onDriftSimulationUpdated={setActiveDriftSimulation}
             />
           )}
 
@@ -298,6 +303,8 @@ export const App: React.FC = () => {
               currentScenario={scenario}
               onSelectScenario={handleSelectScenario}
               onSelectTab={setActiveTab}
+              sarDriftPayload={sarDriftPayload}
+              activeDriftSimulation={activeDriftSimulation}
               onInspectVesselOnMap={(v) => {
                 setTargetLocation({
                   lat: v.lat,

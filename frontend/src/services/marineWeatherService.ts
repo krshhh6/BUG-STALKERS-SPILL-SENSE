@@ -10,6 +10,8 @@
  * 3. Physical Lagrangian Advection-Diffusion & Fay Spreading Engine
  */
 
+import { clampToNavigableWaters } from '../utils/geoContours';
+
 export interface LiveMetOceanData {
   fetchedAt: string;
   source: string;
@@ -59,12 +61,27 @@ export interface LiveCalculatedTimestep {
 export interface LiveSimulationResult {
   metOcean: LiveMetOceanData;
   originCoords: string;
+  originCoordNumeric: [number, number]; // [lat, lng]
   originWindow: string;
   originAreaKm2: number;
   overallLandfallEta: string;
   coastalZoneName: string;
   vulnerableHabitats: string[];
   forecasts: LiveCalculatedTimestep[];
+
+  // Reconstructed trajectories and dispersion envelopes
+  backtrackPath: [number, number][];
+  envelope90: [number, number][];
+  envelope75: [number, number][];
+  envelope50: [number, number][];
+  forwardDriftPath: [number, number][];
+  forwardCone12h: [number, number][];
+  forwardCone24h: [number, number][];
+  predictedCoord12h: [number, number];
+  predictedCoord24h: [number, number];
+  vesselTrack: [number, number][];
+  aisGapTrack: [number, number][];
+  vesselHeading: number;
 }
 
 function degToCompass(deg: number): string {
@@ -208,11 +225,79 @@ export function computeLiveDriftSimulation(
   const uKmh = netSpeedKmh * Math.sin(headingRad);
   const vKmh = netSpeedKmh * Math.cos(headingRad);
 
-  // 1. REVERSE ORIGIN BACKTRACKING (T - 22 hours)
-  const backtrackHours = 22.0;
-  const originLat = initialLat - (vKmh * backtrackHours) / kmPerDegLat;
-  const originLng = initialLng - (uKmh * backtrackHours) / kmPerDegLng;
+  // 1. REVERSE ORIGIN BACKTRACKING (T - 24 hours numerical integration)
+  // Integrates M2 semi-diurnal tidal oscillation (~12.42h period) and Coriolis deflection
+  const totalBacktrackHours = 24.0;
+  const numSteps = 24;
+  const dtHours = totalBacktrackHours / numSteps;
+  const fCoriolis = 2 * (7.2921e-5) * Math.sin((initialLat * Math.PI) / 180.0);
+
+  let currentLat = initialLat;
+  let currentLng = initialLng;
+  const rawBacktrackPath: [number, number][] = [clampToNavigableWaters([initialLat, initialLng])];
+
+  for (let step = 0; step < numSteps; step++) {
+    const tHours = (step + 0.5) * dtHours;
+    // M2 semi-diurnal tidal constituent oscillation
+    const tidalPhase = (2 * Math.PI * tHours) / 12.42;
+    const tidalFactor = 0.45 * Math.cos(tidalPhase);
+
+    // Coriolis deflects flow to the right in the northern hemisphere
+    const coriolisDeflectionRad = fCoriolis * tHours * 3600 * 0.05;
+    const stepHeadingRad = headingRad + coriolisDeflectionRad;
+
+    // Net velocity at step (Eulerian mean + tidal variation)
+    const stepSpeedKmh = Math.max(0.1, netSpeedKmh * (1.0 + tidalFactor));
+    const stepUKmh = stepSpeedKmh * Math.sin(stepHeadingRad);
+    const stepVKmh = stepSpeedKmh * Math.cos(stepHeadingRad);
+
+    // Negative displacement for reverse backtrack
+    currentLat -= (stepVKmh * dtHours) / kmPerDegLat;
+    currentLng -= (stepUKmh * dtHours) / kmPerDegLng;
+
+    // Strict coastline clamping at each step to prevent land penetration
+    const safePt = clampToNavigableWaters([currentLat, currentLng]);
+    currentLat = safePt[0];
+    currentLng = safePt[1];
+
+    if ((step + 1) % 6 === 0 || step === numSteps - 1) {
+      rawBacktrackPath.push([+currentLat.toFixed(4), +currentLng.toFixed(4)]);
+    }
+  }
+
+  const originLat = +currentLat.toFixed(4);
+  const originLng = +currentLng.toFixed(4);
   const originAreaKm2 = +(initialAreaKm2 * 8.5 + (metOcean.currentSpeedMs * 15)).toFixed(1);
+  const backtrackPath = rawBacktrackPath.map(clampToNavigableWaters);
+
+  // Nested Probability Isobar Contours around Origin
+  const driftAngleRad = (metOcean.netDriftHeadingDeg * Math.PI) / 180.0;
+  const cosA = Math.cos(driftAngleRad);
+  const sinA = Math.sin(driftAngleRad);
+
+  const basePlumeAngles = [
+    0, 22, 45, 68, 90, 115, 140, 160, 180, 200, 225, 250, 270, 295, 320, 342
+  ];
+
+  function generatePlumeContour(scaleY: number, scaleX: number, jitter: number[]): [number, number][] {
+    return basePlumeAngles.map((deg, i) => {
+      const rad = (deg * Math.PI) / 180;
+      const r = 1.0 + (jitter[i % jitter.length] || 0);
+      const dy = Math.sin(rad) * scaleY * r;
+      const dx = Math.cos(rad) * scaleX * r;
+      const rx = dx * cosA - dy * sinA;
+      const ry = dx * sinA + dy * cosA;
+      return clampToNavigableWaters([originLat + ry, originLng + rx]);
+    });
+  }
+
+  const scale90Y = Math.max(0.04, Math.min(0.09, 0.05 + metOcean.netDriftSpeedKnots * 0.02));
+  const scale90X = Math.max(0.015, Math.min(0.05, 0.02 + metOcean.netDriftSpeedKnots * 0.01));
+
+  const envelope90 = generatePlumeContour(scale90Y, scale90X, [0.08, -0.06, 0.04, -0.05, 0.07, -0.04, 0.05, -0.07]);
+  const envelope75 = generatePlumeContour(scale90Y * 0.65, scale90X * 0.65, [0.05, -0.04, 0.03, -0.04, 0.04, -0.03, 0.04, -0.05]);
+  const envelope50 = generatePlumeContour(scale90Y * 0.35, scale90X * 0.35, [0.03, -0.02, 0.02, -0.03, 0.03, -0.02, 0.02, -0.03]);
+
 
   // 2. FORWARD FUTURE TIMESTEP PROJECTIONS (T+6, T+12, T+24, T+36, T+48)
   const steps = [6, 12, 24, 36, 48];
@@ -306,14 +391,93 @@ export function computeLiveDriftSimulation(
     }
   }
 
+  // Forward trajectories and cones
+  const dLat12 = (vKmh * 12) / kmPerDegLat;
+  const dLng12 = (uKmh * 12) / kmPerDegLng;
+  const dLat24 = (vKmh * 24) / kmPerDegLat;
+  const dLng24 = (uKmh * 24) / kmPerDegLng;
+
+  const predictedCoord12h = clampToNavigableWaters([initialLat + dLat12, initialLng + dLng12]);
+  const predictedCoord24h = clampToNavigableWaters([initialLat + dLat24, initialLng + dLng24]);
+
+  const rawForwardPath: [number, number][] = [
+    [initialLat, initialLng],
+    [initialLat + dLat12 * 0.5, initialLng + dLng12 * 0.5],
+    predictedCoord12h,
+    [initialLat + (dLat12 + dLat24) * 0.5, initialLng + (dLng12 + dLng24) * 0.5],
+    predictedCoord24h
+  ];
+  const forwardDriftPath = rawForwardPath.map(clampToNavigableWaters);
+
+  const fwdLen = Math.hypot(dLat24, dLng24) || 1.0;
+  const perpLat = -(dLng24 / fwdLen);
+  const perpLng = (dLat24 / fwdLen);
+  const w12 = 0.014;
+  const w24 = 0.026;
+
+  const rawCone12: [number, number][] = [
+    [initialLat, initialLng],
+    [predictedCoord12h[0] + perpLat * w12, predictedCoord12h[1] + perpLng * w12],
+    [predictedCoord12h[0] + dLat12 * 0.05, predictedCoord12h[1] + dLng12 * 0.05],
+    [predictedCoord12h[0] - perpLat * w12, predictedCoord12h[1] - perpLng * w12],
+    [initialLat, initialLng],
+  ];
+  const forwardCone12h: [number, number][] = rawCone12.map(clampToNavigableWaters);
+
+  const rawCone24: [number, number][] = [
+    [initialLat, initialLng],
+    [predictedCoord12h[0] + perpLat * w12, predictedCoord12h[1] + perpLng * w12],
+    [predictedCoord24h[0] + perpLat * w24, predictedCoord24h[1] + perpLng * w24],
+    [predictedCoord24h[0] + dLat24 * 0.05, predictedCoord24h[1] + dLng24 * 0.05],
+    [predictedCoord24h[0] - perpLat * w24, predictedCoord24h[1] - perpLng * w24],
+    [predictedCoord12h[0] - perpLat * w12, predictedCoord12h[1] - perpLng * w12],
+    [initialLat, initialLng],
+  ];
+  const forwardCone24h: [number, number][] = rawCone24.map(clampToNavigableWaters);
+
+  // Vessel kinematics orientation along regional shipping TSS
+  const vesselHeading = Math.round((metOcean.netDriftHeadingDeg + 70) % 360);
+  const trackHeadingRad = (vesselHeading * Math.PI) / 180;
+  const dLatUnit = Math.cos(trackHeadingRad);
+  const dLngUnit = Math.sin(trackHeadingRad);
+
+  const rawVesselTrack: [number, number][] = [
+    [originLat - dLatUnit * 0.35, originLng - dLngUnit * 0.35],
+    [originLat - dLatUnit * 0.15, originLng - dLngUnit * 0.15],
+    [originLat, originLng],
+    [originLat + dLatUnit * 0.12, originLng + dLngUnit * 0.12],
+    [originLat + dLatUnit * 0.32, originLng + dLngUnit * 0.32],
+  ];
+  const vesselTrack = rawVesselTrack.map(clampToNavigableWaters);
+
+  const rawGapTrack: [number, number][] = [
+    [originLat - dLatUnit * 0.15, originLng - dLngUnit * 0.15],
+    [originLat, originLng],
+    [originLat + dLatUnit * 0.08, originLng + dLngUnit * 0.08],
+  ];
+  const aisGapTrack = rawGapTrack.map(clampToNavigableWaters);
+
   return {
     metOcean,
     originCoords: `${originLat.toFixed(3)}°N, ${originLng.toFixed(3)}°E`,
-    originWindow: `Discharge Window: T - 20h to - 24h`,
+    originCoordNumeric: [originLat, originLng],
+    originWindow: 'Discharge Window: T - 20h to - 24h',
     originAreaKm2,
     overallLandfallEta,
     coastalZoneName,
     vulnerableHabitats,
     forecasts,
+    backtrackPath,
+    envelope90,
+    envelope75,
+    envelope50,
+    forwardDriftPath,
+    forwardCone12h,
+    forwardCone24h,
+    predictedCoord12h,
+    predictedCoord24h,
+    vesselTrack,
+    aisGapTrack,
+    vesselHeading,
   };
 }

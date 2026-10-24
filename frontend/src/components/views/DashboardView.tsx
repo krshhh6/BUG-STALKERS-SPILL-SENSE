@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import type { Scenario, TabType } from '../../types/dashboard';
+import type { Scenario, TabType, SarDriftPayload } from '../../types/dashboard';
+import type { LiveSimulationResult } from '../../services/marineWeatherService';
 import type { LiveIncident } from '../../hooks/useIncidents';
 import { MapPanel } from '../MapPanel';
 
@@ -21,6 +22,8 @@ interface DashboardViewProps {
     sub?: string;
     category?: string;
   } | null;
+  sarDriftPayload?: SarDriftPayload | null;
+  activeDriftSimulation?: LiveSimulationResult | null;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -34,6 +37,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   isFullscreen: externalFullscreen,
   onToggleFullscreen: externalToggleFullscreen,
   targetLocation,
+  sarDriftPayload,
+  activeDriftSimulation,
 }) => {
   const [internalFullscreen, setInternalFullscreen] = useState(false);
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
@@ -172,6 +177,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onSelectScenario={onSelectScenario}
             scenarios={scenarios}
             targetLocation={targetLocation}
+            sarDriftPayload={sarDriftPayload}
+            activeDriftSimulation={activeDriftSimulation}
           />
         </div>
 
