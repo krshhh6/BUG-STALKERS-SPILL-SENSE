@@ -44,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const fetchAis = async () => {
       try {
         const res = await fetch('/api/v1/ais/stream-status');
-        if (res.ok) {
+        if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
           const data = await res.json();
           if (mounted && data.total_live_vessels_tracked !== undefined) {
             setAisCount(data.total_live_vessels_tracked);

@@ -55,7 +55,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ incidents, onOpenL
   useEffect(() => {
     fetch('/api/v1/ml/metrics')
       .then(res => {
-        if (!res.ok) throw new Error('API offline');
+        if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) throw new Error('API offline');
         return res.json();
       })
       .then(data => {
@@ -131,11 +131,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ incidents, onOpenL
       setDownloadNotice(`Analyzing uploaded SAR scene: ${file.name}...`);
       let dataUrl = '';
       let rasters: { vvRaster?: Float32Array; vhRaster?: Float32Array } | undefined;
+      let geoBounds: import('../../utils/tiffDecoder').GeoBounds | undefined;
 
       if (file.name.toLowerCase().endsWith('.tif') || file.name.toLowerCase().endsWith('.tiff')) {
         const decoded = await decodeTiffFile(file);
         dataUrl = decoded.dataUrl;
         rasters = { vvRaster: decoded.vvRaster, vhRaster: decoded.vhRaster };
+        geoBounds = decoded.geoBounds;
       } else {
         dataUrl = URL.createObjectURL(file);
       }
@@ -152,6 +154,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ incidents, onOpenL
               imageName: file.name,
               imageUrl: dataUrl,
               maskUrl: res.segmentationMask,
+              geoBounds,
+              customCoords: geoBounds ? { lat: geoBounds.centerLat, lng: geoBounds.centerLng } : undefined,
             });
             const newInc = analyticsToIncident(analytics);
             setLocalUploadedIncidents((prev) => [newInc, ...prev.filter((i) => i.id !== newInc.id)]);
@@ -581,7 +585,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ incidents, onOpenL
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto', paddingRight: 4 }}>
                 {list.length > 0 ? (
                   list.map((inc) => {
                     const isLab = inc.isLabUploaded;
