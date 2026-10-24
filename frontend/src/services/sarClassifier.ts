@@ -133,6 +133,8 @@ function computeSarFeatures(data: Uint8ClampedArray, width: number, height: numb
   const totalPixels = width * height;
   let sumBrightness = 0;
   let brightCount = 0;
+  let brightRidgeCount = 0; // Mountain slopes facing radar (DN >= 160)
+  let darkPixelCount = 0;   // Deep shadows / depressions (DN <= 40)
   let coloredPixels = 0;
   let colorDiffSum = 0;
 
@@ -155,10 +157,14 @@ function computeSarFeatures(data: Uint8ClampedArray, width: number, height: numb
     histogram[gray]++;
     sumBrightness += gray;
     if (gray > 190) brightCount++;
+    if (gray >= 160) brightRidgeCount++;
+    if (gray <= 40) darkPixelCount++;
   }
 
   const meanBrightness = sumBrightness / totalPixels;
   const brightRatio = brightCount / totalPixels;
+  const brightRidgeRatio = brightRidgeCount / totalPixels;
+  const darkRatio = darkPixelCount / totalPixels;
   const coloredRatio = coloredPixels / totalPixels;
   const avgColorDiff = colorDiffSum / totalPixels;
   const isColor = coloredRatio > 0.08 || avgColorDiff > 25;
@@ -166,12 +172,14 @@ function computeSarFeatures(data: Uint8ClampedArray, width: number, height: numb
   // --- FEATURE 1: Spatial speckle analysis via 5x5 blocks ---
   // SAR imagery has Rayleigh-distributed multiplicative speckle noise (non-zero local variance).
   // Paint/synthetic images have perfectly flat regions (zero variance in uniform fills).
+  // Rugged mountain terrain exhibits extreme variance (> 300) across broken slopes.
   const bs = 5;
   const hb = Math.floor(height / bs);
   const wb = Math.floor(width / bs);
   let flatBlocks = 0;
   let validBlocks = 0;
   let highVarBlocks = 0; // SAR speckle signature: blocks with variance > 80 (10+ dN)
+  let extremeVarBlocks = 0; // Rugged mountain terrain variance > 300
 
   for (let by = 0; by < hb; by++) {
     for (let bx = 0; bx < wb; bx++) {
@@ -192,10 +200,12 @@ function computeSarFeatures(data: Uint8ClampedArray, width: number, height: numb
       const bVariance = bSumSq / 25 - bMean * bMean;
       if (bVariance < 1.5) flatBlocks++;
       if (bVariance > 80) highVarBlocks++;
+      if (bVariance > 300) extremeVarBlocks++;
     }
   }
   const flatRatio = validBlocks > 0 ? flatBlocks / validBlocks : 1.0;
   const speckleRatio = validBlocks > 0 ? highVarBlocks / validBlocks : 0; // SAR: typically > 0.05
+  const extVarRatio = validBlocks > 0 ? extremeVarBlocks / validBlocks : 0;
 
   // --- FEATURE 2: Histogram entropy (Shannon) ---
   // Real SAR: broad continuous histogram with many populated bins → high entropy (5.5–7.5 bits)
@@ -258,6 +268,116 @@ function computeSarFeatures(data: Uint8ClampedArray, width: number, height: numb
   }
   const maxModeRatio = maxModeCount / totalPixels;
 
+  // --- FEATURE 6: Terrestrial Land, Mountain Topography & Radar Shadow Analysis ---
+  // A) Radar shadow adjacent to bright layover ridges
+  const isBrightRidge = new Uint8Array(totalPixels);
+  for (let i = 0; i < totalPixels; i++) {
+    if (grayValues[i] >= 160) isBrightRidge[i] = 1;
+  }
+  const brightDilated = new Uint8Array(totalPixels);
+  for (let y = 0; y < height; y++) {
+    const rowOffset = y * width;
+    for (let x = 0; x < width; x++) {
+      let bVal = 0;
+      const xMin = Math.max(0, x - 15);
+      const xMax = Math.min(width - 1, x + 15);
+      for (let k = xMin; k <= xMax; k++) {
+        if (isBrightRidge[rowOffset + k] === 1) { bVal = 1; break; }
+      }
+      brightDilated[rowOffset + x] = bVal;
+    }
+  }
+  const brightDilated2D = new Uint8Array(totalPixels);
+  for (let x = 0; x < width; x++) {
+    for (let y = 0; y < height; y++) {
+      let bVal = 0;
+      const yMin = Math.max(0, y - 15);
+      const yMax = Math.min(height - 1, y + 15);
+      for (let k = yMin; k <= yMax; k++) {
+        if (brightDilated[k * width + x] === 1) { bVal = 1; break; }
+      }
+      brightDilated2D[y * width + x] = bVal;
+    }
+  }
+
+  let shadowAdjacentCount = 0;
+  for (let i = 0; i < totalPixels; i++) {
+    if (grayValues[i] <= 25 && brightDilated2D[i] === 1) {
+      shadowAdjacentCount++;
+    }
+  }
+  const shadowRatio = shadowAdjacentCount / totalPixels;
+
+  // B) Land-locked depression: dark patch surrounded by mountain slopes
+  let isLandLockedDepression = false;
+  if (darkRatio >= 0.02 && brightRidgeRatio >= 0.05) {
+    const isDark = new Uint8Array(totalPixels);
+    for (let i = 0; i < totalPixels; i++) {
+      if (grayValues[i] <= 40) isDark[i] = 1;
+    }
+    const dilIn = new Uint8Array(totalPixels);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let val = 0;
+        for (let dy = -4; dy <= 4; dy++) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= height) continue;
+          for (let dx = -4; dx <= 4; dx++) {
+            const nx = x + dx;
+            if (nx < 0 || nx >= width) continue;
+            if (isDark[ny * width + nx] === 1) { val = 1; break; }
+          }
+          if (val === 1) break;
+        }
+        dilIn[y * width + x] = val;
+      }
+    }
+    const dilOut = new Uint8Array(totalPixels);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let val = 0;
+        for (let dy = -14; dy <= 14; dy++) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= height) continue;
+          for (let dx = -14; dx <= 14; dx++) {
+            const nx = x + dx;
+            if (nx < 0 || nx >= width) continue;
+            if (isDark[ny * width + nx] === 1) { val = 1; break; }
+          }
+          if (val === 1) break;
+        }
+        dilOut[y * width + x] = val;
+      }
+    }
+
+    let rimSum = 0;
+    let rimSumSq = 0;
+    let rimCount = 0;
+    let rimBright = 0;
+    for (let i = 0; i < totalPixels; i++) {
+      if (dilOut[i] === 1 && dilIn[i] === 0 && isDark[i] === 0) {
+        const g = grayValues[i];
+        rimSum += g;
+        rimSumSq += g * g;
+        rimCount++;
+        if (g >= 150) rimBright++;
+      }
+    }
+    if (rimCount >= 30) {
+      const rimMean = rimSum / rimCount;
+      const rimVariance = rimSumSq / rimCount - rimMean * rimMean;
+      const rimStd = Math.sqrt(Math.max(0, rimVariance));
+      const rimBrightFraction = rimBright / rimCount;
+      if (rimBrightFraction >= 0.15 || (rimBrightFraction >= 0.08 && rimStd >= 30.0)) {
+        isLandLockedDepression = true;
+      }
+    }
+  }
+
+  const isTopoShadow = brightRidgeRatio >= 0.12 && shadowRatio >= 0.015;
+  const isRuggedMountains = extVarRatio >= 0.20 && brightRidgeRatio >= 0.12;
+  const isLandTerrain = isTopoShadow || isRuggedMountains || isLandLockedDepression;
+
   return {
     meanBrightness,
     brightRatio,
@@ -272,6 +392,11 @@ function computeSarFeatures(data: Uint8ClampedArray, width: number, height: numb
     softEdgeRatio,
     maxModeRatio,
     maxModeVal,
+    isLandTerrain,
+    brightRidgeRatio,
+    shadowRatio,
+    extVarRatio,
+    isLandLockedDepression,
     histogram,
     grayValues,
   };
@@ -282,7 +407,7 @@ export function validateSarImage(data: Uint8ClampedArray, width: number, height:
   const {
     meanBrightness, brightRatio, coloredRatio, avgColorDiff, isColor,
     flatRatio, histEntropy, distinctLevels,
-    maxModeRatio, maxModeVal
+    maxModeRatio, maxModeVal, isLandTerrain
   } = features;
 
   // ============================================================
@@ -355,6 +480,19 @@ export function validateSarImage(data: Uint8ClampedArray, width: number, height:
     return {
       isValid: false,
       reason: 'Empty / Black Frame — zero radar backscatter signal detected',
+      metrics: { meanBrightness, brightRatio, sharpTransitions: flatRatio, isColor }
+    };
+  }
+
+  // ============================================================
+  // REJECTION 6: Terrestrial Land & Mountain Topography / Radar Shadow Exclusion
+  // Real SAR marine oil spills float on open, calm-to-moderate ocean water.
+  // Images dominated by mountain relief, rocky ridges, and radar shadow depressions are excluded.
+  // ============================================================
+  if (isLandTerrain) {
+    return {
+      isValid: false,
+      reason: 'Terrestrial Land & Mountain Topography Detected — scene is dominated by rugged topography, mountain ridges, and radar shadows with no open marine sea surface. SpillSense operates strictly on marine / offshore SAR scenes.',
       metrics: { meanBrightness, brightRatio, sharpTransitions: flatRatio, isColor }
     };
   }
@@ -471,9 +609,41 @@ function computeDeterministicPhysicsScore(
 function computeLandBufferMask(lum: Uint8Array | Float32Array, width: number, height: number, radius = 5): Uint8Array {
   const isLand = new Uint8Array(width * height);
   let landPixelCount = 0;
+
+  // 1. Bright terrestrial land and man-made structures (>= 165 in 8-bit scale)
   for (let i = 0; i < width * height; i++) {
-    // True terrestrial land / structures have high radar backscatter (>= 165 in 8-bit scale)
     if (lum[i] >= 165) {
+      isLand[i] = 1;
+      landPixelCount++;
+    }
+  }
+
+  // 2. Terrain texture & radar shadow detection:
+  // Mountain terrain has high local variance; radar shadow produces extreme dark (< 20) adjacent to bright layover (>= 165)
+  const isBright = new Uint8Array(width * height);
+  for (let i = 0; i < width * height; i++) {
+    if (lum[i] >= 165) isBright[i] = 1;
+  }
+
+  // Dilate bright pixels by 12 px to locate shadow zones adjacent to slopes
+  const brightDilated = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    const rowOffset = y * width;
+    for (let x = 0; x < width; x++) {
+      let bVal = 0;
+      const xMin = Math.max(0, x - 12);
+      const xMax = Math.min(width - 1, x + 12);
+      for (let k = xMin; k <= xMax; k++) {
+        if (isBright[rowOffset + k] === 1) { bVal = 1; break; }
+      }
+      brightDilated[rowOffset + x] = bVal;
+    }
+  }
+
+  for (let i = 0; i < width * height; i++) {
+    const val = lum[i];
+    // Mountain radar shadow: very dark and adjacent to bright mountain ridge
+    if (val <= 22 && brightDilated[i] === 1) {
       isLand[i] = 1;
       landPixelCount++;
     }
@@ -1184,26 +1354,18 @@ function scanCapillaryWaveDamping(
   // 3. Strong physical capillary wave damping override:
   const physicsConfirmed = marineDamping.hasProminentSlick;
 
-  // 4. Very large slick override:
-  const largeCoverageOverride = marineDamping.dampRatio >= 0.08 && marineDamping.coreRatio >= 0.02;
-
   let isOil = false;
   let finalConfidence = 0.5;
 
-  if (largeCoverageOverride) {
-    // Unmistakably large oil slick — physics is definitive
-    isOil = true;
-    finalConfidence = Math.min(0.97, 0.75 + marineDamping.dampRatio * 1.5 + marineDamping.coreRatio * 2.0);
-  } else if (classifierConfirmed && uNetConfirmedSlick) {
+  if (classifierConfirmed && uNetConfirmedSlick) {
     // Both classifier and spatial segmenter confirm oil spill: high calibrated joint confidence
     isOil = true;
     const segFactor = Math.min(1.0, 0.50 + (segMaskRes?.spillPixels || 0) / 2500);
     finalConfidence = +(0.60 * clsProb + 0.40 * segFactor).toFixed(3);
-  } else if (classifierConfirmed) {
-    // Neural network classifier confirmed oil spill (clsProb >= optimalThreshold)
+  } else if (classifierConfirmed && (uNetConfirmedSlick || physicsConfirmed)) {
+    // Neural network classifier confirmed oil spill supported by segmenter or physics
     isOil = true;
     finalConfidence = +Math.max(0.60, Math.min(0.92, clsProb)).toFixed(3);
-    // If segmenter found 0 pixels or was not available, generate deterministic capillary damping mask as fallback
     if (!segMaskRes || segMaskRes.areaPercent === 0) {
       const fallbackMask = generateDeterministicMask(data, 400, 400, dualPolRasters);
       segMaskRes = {
@@ -1215,12 +1377,8 @@ function scanCapillaryWaveDamping(
     // Spatial segmenter detected a localized slick supported by physics and near-threshold classifier
     isOil = true;
     finalConfidence = +(0.50 + 0.30 * clsProb + 0.20 * Math.min(1.0, (segMaskRes?.spillPixels || 0) / 2000)).toFixed(3);
-  } else if (physicsConfirmed && clsProb >= 0.40 && segMaskRes?.hasCore) {
-    // Capillary wave damping with supporting classifier probability and core presence
-    isOil = true;
-    finalConfidence = +(0.55 + 0.35 * clsProb).toFixed(3);
   } else {
-    // Genuine calibrated clean ocean confidence
+    // Clean ocean / Non-oil (genuine calibrated confidence)
     isOil = false;
     finalConfidence = +(1.0 - clsProb).toFixed(3);
   }

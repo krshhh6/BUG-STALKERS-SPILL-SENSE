@@ -1,0 +1,109 @@
+{
+  "timestamp_utc": "2026-10-22T14:28:57Z",
+  "land_service_status": "Natural Earth 50m (1420 land polygons) + India Coastline Outline (1 polygons)",
+  "categories": {
+    "1_land_only": {
+      "scenes_tested": 3,
+      "false_positive_alerts": 0,
+      "land_fpr": 0.0,
+      "passed": true
+    },
+    "2_coastlines_and_islands": {
+      "coastal_scenes_tested": 3,
+      "land_leakage_points": 0,
+      "passed": true
+    },
+    "4_genuine_oil_spills": {
+      "scenes_evaluated": 6,
+      "recall_detected_pct": 100.0,
+      "details": [
+        {
+          "filename": "00492.tif",
+          "detected": true,
+          "polygons": 1324,
+          "area_km2": 190.73
+        },
+        {
+          "filename": "00935.tif",
+          "detected": true,
+          "polygons": 916,
+          "area_km2": 96.19
+        },
+        {
+          "filename": "00912.tif",
+          "detected": true,
+          "polygons": 1569,
+          "area_km2": 226.7
+        },
+        {
+          "filename": "00563.tif",
+          "detected": true,
+          "polygons": 1495,
+          "area_km2": 217.72
+        },
+        {
+          "filename": "00676.tif",
+          "detected": true,
+          "polygons": 1109,
+          "area_km2": 122.65
+        },
+        {
+          "filename": "01249.tif",
+          "detected": true,
+          "polygons": 1541,
+          "area_km2": 200.36
+        }
+      ],
+      "passed": true
+    },
+    "5_ship_wakes": {
+      "wakes_tested": 10,
+      "false_positive_alerts": 1,
+      "ship_wake_fpr": 10.0,
+      "passed": true
+    },
+    "6_lookalikes": {
+      "lookalikes_tested": 10,
+      "false_positive_alerts": 0,
+      "lookalike_fpr": 0.0,
+      "passed": true
+    },
+    "7_nodata_and_corruption": {
+      "corrupted_cases_tested": 3,
+      "false_positive_alerts": 0,
+      "passed": true
+    },
+    "8_tile_seams_and_borders": {
+      "runtime_ms": 63.6,
+      "border_artifacts_detected": 0,
+      "seam_continuity_passed": true
+    }
+  },
+  "gates": {
+    "Gate 1: Land-only False Positive Rate == 0%": {
+      "target": 0.0,
+      "measured": 0.0,
+      "passed": true
+    },
+    "Gate 2: No-data / Corruption False Alerts == 0": {
+      "target": 0,
+      "measured": 0,
+      "passed": true
+    },
+    "Gate 3: Genuine Oil Spill Recall >= 90%": {
+      "target": 90.0,
+      "measured": 100.0,
+      "passed": true
+    },
+    "Gate 4: Ship-wake False Positive Rate <= 10%": {
+      "target": 10.0,
+      "measured": 10.0,
+      "passed": true
+    },
+    "Gate 5: Coastline Land Leakage == 0": {
+      "target": 0,
+      "measured": 0,
+      "passed": true
+    }
+  }
+}

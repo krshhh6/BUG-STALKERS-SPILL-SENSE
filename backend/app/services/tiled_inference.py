@@ -54,6 +54,52 @@ class TiledSARInferenceEngine:
         self.default_sensitivity = default_sensitivity
         self.min_slick_area_km2 = min_slick_area_km2
 
+        # Initialize DualPolOilSpillNet classifier gating engine
+        self.classifier_session = None
+        self.classifier_threshold = 0.49
+        try:
+            import onnxruntime as ort
+            import os
+            cls_paths = [
+                os.path.join(os.path.dirname(__file__), "..", "..", "..", "frontend", "public", "models", "oil_classifier.onnx"),
+                os.path.join(os.path.dirname(__file__), "..", "models", "oil_classifier.onnx")
+            ]
+            for cp in cls_paths:
+                if os.path.exists(cp):
+                    self.classifier_session = ort.InferenceSession(os.path.abspath(cp), providers=['CPUExecutionProvider'])
+                    print(f"TiledSARInferenceEngine: Loaded DualPolOilSpillNet classifier gate from {cp}")
+                    break
+        except Exception as e:
+            print(f"TiledSARInferenceEngine: Classifier initialization note: {e}")
+
+    def run_classifier_gate(self, vv_db: np.ndarray, vh_db: np.ndarray, sea_mask: np.ndarray) -> float:
+        """Runs DualPolOilSpillNet classifier to screen out ship wakes, clean ocean, and look-alikes."""
+        if self.classifier_session is None or not CV2_AVAILABLE:
+            return 0.50
+
+        try:
+            h, w = vv_db.shape
+            # Focus on central or salient marine region
+            cy, cx = h // 2, w // 2
+            half = min(cy, cx, 200)
+            crop_vv = vv_db[cy - half:cy + half, cx - half:cx + half]
+            crop_vh = vh_db[cy - half:cy + half, cx - half:cx + half]
+
+            vv_norm = np.clip((crop_vv - (-32.0)) / 22.0, 0.0, 1.0)
+            vh_norm = np.clip((crop_vh - (-42.0)) / 22.0, 0.0, 1.0)
+
+            vv_400 = cv2.resize(vv_norm, (400, 400), interpolation=cv2.INTER_LINEAR)
+            vh_400 = cv2.resize(vh_norm, (400, 400), interpolation=cv2.INTER_LINEAR)
+            tensor_in = np.stack([vv_400, vh_400], axis=0).reshape(1, 2, 400, 400).astype(np.float32)
+
+            in_name = self.classifier_session.get_inputs()[0].name
+            out_name = self.classifier_session.get_outputs()[0].name
+            logit = float(self.classifier_session.run([out_name], {in_name: tensor_in})[0].flat[0])
+            prob = 1.0 / (1.0 + math.exp(-max(-20.0, min(20.0, logit))))
+            return prob
+        except Exception:
+            return 0.50
+
     @staticmethod
     def _create_2d_hann_window(height: int, width: int, power: float = 1.0) -> np.ndarray:
         """
@@ -88,26 +134,83 @@ class TiledSARInferenceEngine:
         threshold = sensitivity_threshold or self.default_sensitivity
         area_filter = min_area_km2 or self.min_slick_area_km2
 
-        # Standardize raster to 2D dB array
+        # Extract VV and VH polarimetric channels
         if sar_raster.ndim == 3:
-            # If dual-pol (2, H, W): use VV (Channel 1) as primary co-pol channel
-            sar_db = sar_raster[1] if sar_raster.shape[0] >= 2 else sar_raster[0]
+            if sar_raster.shape[0] == 2:
+                # Standard S1 IW GRD: Band 0 = VH, Band 1 = VV
+                vv_db = sar_raster[1].astype(np.float32)
+                vh_db = sar_raster[0].astype(np.float32)
+            elif sar_raster.shape[-1] == 2:
+                vv_db = sar_raster[:, :, 1].astype(np.float32)
+                vh_db = sar_raster[:, :, 0].astype(np.float32)
+            else:
+                vv_db = sar_raster[0].astype(np.float32)
+                vh_db = vv_db - 10.5
         else:
-            sar_db = sar_raster
+            vv_db = sar_raster.astype(np.float32)
+            vh_db = vv_db - 10.5
 
+        sar_db = vv_db
         h, w = sar_db.shape
 
-        # Generate or sanitize sea mask
-        if sea_mask is None or sea_mask.shape != (h, w):
-            filtered_db = SARPreprocessor.lee_speckle_filter(sar_db, window_size=5)
-            masked_sar, computed_sea_mask = SARPreprocessor.mask_land_pixels(filtered_db)
-        else:
-            computed_sea_mask = sea_mask.astype(np.uint8)
-            masked_sar = np.where(computed_sea_mask == 1, sar_db, -100.0)
+        # 1. Authoritative Geospatial Land-Sea & NoData Masking
+        from app.services.land_sea_mask_service import LandSeaMaskService
+        land_service = LandSeaMaskService.get_instance()
+        mask_res = land_service.generate_ocean_mask(
+            raster_shape=(h, w),
+            bounds=bounds,
+            transform=transform,
+            sar_raster=sar_db,
+            coastal_buffer_px=2
+        )
+        computed_sea_mask = mask_res.ocean_mask
+        if sea_mask is not None and sea_mask.shape == (h, w):
+            computed_sea_mask = (computed_sea_mask & sea_mask.astype(np.uint8)).astype(np.uint8)
+
+        masked_sar = np.where(computed_sea_mask == 1, sar_db, -100.0)
+
+        # Check ocean coverage: if scene is terrestrial land (< 0.5% water), immediately return zero alerts
+        if mask_res.ocean_coverage_pct < 0.5:
+            return {
+                "status": "no_oil_detected",
+                "polygons": [],
+                "total_detected_area_km2": 0.0,
+                "model_version": self.engine.MODEL_VERSION,
+                "uncertainty": {"false_positive_risk": "LOW", "detection_confidence_score": 0.0},
+                "ocean_mean_db": -14.0,
+                "land_mask_applied": True,
+                "land_coverage_pct": mask_res.land_coverage_pct,
+                "ocean_coverage_pct": mask_res.ocean_coverage_pct,
+                "nodata_coverage_pct": mask_res.nodata_coverage_pct,
+                "land_data_source": mask_res.data_source,
+                "message": "Scene classified as terrestrial land. Land exclusion active; zero false alarms.",
+                "raster_dimensions": [w, h]
+            }
 
         # Ambient ocean clutter statistics
         valid_marine_px = sar_db[computed_sea_mask == 1]
         ocean_mean_db = float(np.percentile(valid_marine_px, 65)) if len(valid_marine_px) > 0 else -14.0
+
+        # Authoritative Classifier Gating: screen out ship wakes and look-alikes
+        cls_prob = self.run_classifier_gate(vv_db, vh_db, computed_sea_mask)
+        if cls_prob < 0.20:
+            return {
+                "status": "no_oil_detected",
+                "polygons": [],
+                "total_detected_area_km2": 0.0,
+                "model_version": self.engine.MODEL_VERSION,
+                "uncertainty": {"false_positive_risk": "LOW", "detection_confidence_score": round(1.0 - cls_prob, 3)},
+                "ocean_mean_db": round(ocean_mean_db, 2),
+                "land_mask_applied": True,
+                "land_coverage_pct": mask_res.land_coverage_pct,
+                "ocean_coverage_pct": mask_res.ocean_coverage_pct,
+                "nodata_coverage_pct": mask_res.nodata_coverage_pct,
+                "land_data_source": mask_res.data_source,
+                "classifier_gated": True,
+                "classifier_oil_prob": round(cls_prob, 4),
+                "message": "Classifier confirmed clean ocean or look-alike / vessel wake. Gated out without false alarms.",
+                "raster_dimensions": [w, h]
+            }
 
         # Accumulator arrays for overlapping reconstruction
         prob_accumulator = np.zeros((h, w), dtype=np.float32)
@@ -137,22 +240,23 @@ class TiledSARInferenceEngine:
                 cur_h = y_end - y
                 cur_w = x_end - x
 
-                tile_db = masked_sar[y:y_end, x:x_end]
+                tile_vv = vv_db[y:y_end, x:x_end]
+                tile_vh = vh_db[y:y_end, x:x_end]
                 tile_sea = computed_sea_mask[y:y_end, x:x_end]
 
-                # If tile is strictly land/unmasked, skip ML
-                if not np.any(tile_sea == 1):
+                # If tile has virtually no ocean (< 2% valid water), skip ML
+                if float(np.mean(tile_sea)) < 0.02:
                     continue
 
-                # Run neural network inference on tile
-                tile_prob = self._infer_single_patch(tile_db, tile_sea)
+                # Run SpillSegNet ONNX inference on dual-pol tile
+                tile_prob = self._infer_single_patch(tile_vv, tile_vh, tile_sea)
 
                 # Damping score relative to ambient ocean clutter
-                damping_delta = (ocean_mean_db - 4.5) - tile_db
+                damping_delta = (ocean_mean_db - 4.5) - tile_vv
                 damping_score = np.clip(damping_delta / 4.0, 0.0, 1.0) * tile_sea
 
-                # Conjunction of neural activation (40%) and capillary damping depression (60%)
-                combined_tile_prob = (tile_prob * 0.4) + (damping_score * 0.6)
+                # Conjunction of neural activation (65%) and capillary damping depression (35%)
+                combined_tile_prob = (tile_prob * 0.65) + (damping_score * 0.35)
 
                 w_slice = hann_weight[:cur_h, :cur_w]
                 prob_accumulator[y:y_end, x:x_end] += combined_tile_prob * w_slice
@@ -160,6 +264,7 @@ class TiledSARInferenceEngine:
 
         # Normalize probability map
         full_prob_map = prob_accumulator / np.maximum(weight_accumulator, 1e-5)
+        # Strictly zero-out land, island, and nodata pixels
         full_prob_map = full_prob_map * computed_sea_mask.astype(np.float32)
 
         # Global capillary damping check
@@ -171,13 +276,15 @@ class TiledSARInferenceEngine:
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
             cleaned_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_CLOSE, kernel)
             cleaned_mask = cv2.morphologyEx(cleaned_mask, cv2.MORPH_OPEN, kernel)
+            # Re-apply sea mask to eliminate any morphological dilation leakage onto land
+            cleaned_mask = (cleaned_mask * computed_sea_mask).astype(np.uint8)
         else:
-            cleaned_mask = binary_mask
+            cleaned_mask = (binary_mask * computed_sea_mask).astype(np.uint8)
 
         # Compute uncertainty metrics
         uncertainty_info = self._calculate_uncertainty(full_prob_map, computed_sea_mask, threshold)
 
-        # Extract geographic vector polygons
+        # Extract geographic vector polygons with zero land leakage
         polygons = self._extract_geopolygons(
             cleaned_mask=cleaned_mask,
             prob_map=full_prob_map,
@@ -185,7 +292,8 @@ class TiledSARInferenceEngine:
             ocean_mean_db=ocean_mean_db,
             transform=transform,
             bounds=bounds,
-            area_filter=area_filter
+            area_filter=area_filter,
+            land_mask=mask_res.land_mask
         )
 
         total_area = round(sum(p["area_km2"] for p in polygons), 2)
@@ -194,7 +302,7 @@ class TiledSARInferenceEngine:
         status = "detected" if has_detection else "no_oil_detected"
         message = (
             f"Active hydrocarbon signature detected across {len(polygons)} slick segment(s) totaling {total_area} km²."
-            if has_detection else "No significant hydrocarbon signature detected across analyzed SAR scene."
+            if has_detection else "No significant hydrocarbon signature detected across analyzed marine SAR scene."
         )
 
         return {
@@ -204,27 +312,57 @@ class TiledSARInferenceEngine:
             "model_version": self.engine.MODEL_VERSION,
             "uncertainty": uncertainty_info,
             "ocean_mean_db": round(ocean_mean_db, 2),
+            "land_mask_applied": True,
+            "land_coverage_pct": mask_res.land_coverage_pct,
+            "ocean_coverage_pct": mask_res.ocean_coverage_pct,
+            "nodata_coverage_pct": mask_res.nodata_coverage_pct,
+            "land_data_source": mask_res.data_source,
             "message": message,
             "raster_dimensions": [w, h]
         }
 
-    def _infer_single_patch(self, tile_db: np.ndarray, tile_sea: np.ndarray) -> np.ndarray:
-        """Runs segmentation model on a single normalized tile."""
-        clipped_db = np.clip(tile_db, -32.0, -4.0)
-        norm_input = 1.0 - ((clipped_db - (-32.0)) / ((-4.0) - (-32.0)))
-        norm_input = norm_input * tile_sea.astype(np.float32)
+    def _infer_single_patch(self, tile_vv: np.ndarray, tile_vh: np.ndarray, tile_sea: np.ndarray) -> np.ndarray:
+        """Runs SpillSegNet ONNX dual-polarization model on a single tile."""
+        cur_h, cur_w = tile_vv.shape
 
-        if TORCH_AVAILABLE and hasattr(self.engine, "model") and hasattr(self.engine, "device"):
+        # Normalize VV: [-32, -10] dB -> [0.0, 1.0]
+        vv_norm = np.clip((tile_vv - (-32.0)) / ((-10.0) - (-32.0)), 0.0, 1.0)
+        # Normalize VH: [-42, -20] dB -> [0.0, 1.0]
+        vh_norm = np.clip((tile_vh - (-42.0)) / ((-20.0) - (-42.0)), 0.0, 1.0)
+
+        # Execute ONNX Runtime engine (SpillSegNet Dual-Pol)
+        if hasattr(self.engine, "ort_session") and self.engine.ort_session is not None:
             try:
-                tensor_in = torch.from_numpy(norm_input).unsqueeze(0).unsqueeze(0).to(self.engine.device)
+                vv_512 = cv2.resize(vv_norm, (512, 512), interpolation=cv2.INTER_LINEAR)
+                vh_512 = cv2.resize(vh_norm, (512, 512), interpolation=cv2.INTER_LINEAR)
+                tensor_512 = np.stack([vv_512, vh_512], axis=0).reshape(1, 2, 512, 512).astype(np.float32)
+
+                input_name = self.engine.ort_session.get_inputs()[0].name
+                output_name = self.engine.ort_session.get_outputs()[0].name
+                raw_out = self.engine.ort_session.run([output_name], {input_name: tensor_512})[0]
+
+                # Dense logits [1, 1, 512, 512] -> sigmoid probability
+                logits = raw_out.squeeze()
+                prob_512 = 1.0 / (1.0 + np.exp(-np.clip(logits, -20.0, 20.0)))
+                prob = cv2.resize(prob_512, (cur_w, cur_h), interpolation=cv2.INTER_LINEAR)
+                return prob * tile_sea.astype(np.float32)
+            except Exception as e:
+                pass
+
+        # Execute PyTorch model if available
+        if TORCH_AVAILABLE and hasattr(self.engine, "model") and self.engine.model is not None and hasattr(self.engine, "device") and self.engine.device is not None:
+            try:
+                tensor_in = torch.from_numpy(vv_norm).unsqueeze(0).unsqueeze(0).to(self.engine.device)
                 with torch.no_grad():
                     prob = self.engine.model(tensor_in).squeeze().cpu().numpy()
-                return prob
+                return prob * tile_sea.astype(np.float32)
             except Exception:
                 pass
 
-        # Robust heuristic fallback if Torch is not active
-        return norm_input
+        # Physical capillary depression fallback
+        ocean_val = float(np.percentile(tile_vv[tile_sea == 1], 65)) if np.any(tile_sea == 1) else -14.0
+        heuristic_prob = np.clip(((ocean_val - 4.5) - tile_vv) / 6.0, 0.0, 1.0)
+        return heuristic_prob * tile_sea.astype(np.float32)
 
     def _calculate_uncertainty(
         self,
@@ -273,7 +411,8 @@ class TiledSARInferenceEngine:
         ocean_mean_db: float,
         transform: Optional[List[float]],
         bounds: Optional[Dict[str, float]],
-        area_filter: float
+        area_filter: float,
+        land_mask: Optional[np.ndarray] = None
     ) -> List[Dict[str, Any]]:
         """Extracts and maps vector polygons with geodesic area calculation."""
         if not CV2_AVAILABLE:
@@ -340,6 +479,10 @@ class TiledSARInferenceEngine:
                 # Sample contour pixel mask
                 poly_mask = np.zeros((h, w), dtype=np.uint8)
                 cv2.drawContours(poly_mask, [cnt], -1, 1, -1)
+
+                # Strict geospatial exclusion: eliminate any polygon intersecting land
+                if land_mask is not None and np.any((poly_mask == 1) & (land_mask == 1)):
+                    continue
                 slick_pixels = sar_db[poly_mask == 1]
                 mean_damping = float(np.mean(slick_pixels) - ocean_mean_db) if len(slick_pixels) > 0 else -6.5
                 conf = float(np.mean(prob_map[poly_mask == 1])) if len(slick_pixels) > 0 else 0.85

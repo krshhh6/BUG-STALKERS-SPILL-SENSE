@@ -148,56 +148,77 @@ class SARSPILLSegmentationEngine:
         rows, cols = sar_sigma0_db.shape
         min_lon, min_lat, max_lon, max_lat = bbox
 
-        # 1. Normalize input dB values from [-32 dB, -4 dB] to [0.0, 1.0]
-        clipped_db = np.clip(sar_sigma0_db, -32.0, -4.0)
-        norm_input = 1.0 - ((clipped_db - (-32.0)) / ((-4.0) - (-32.0)))
-        norm_input = (norm_input * sea_mask.astype(np.float32)).astype(np.float32)
+        # 1. Dual-polarization normalization for SpillSegNet:
+        # VV: [-32.0 dB, -10.0 dB], VH: [-42.0 dB, -20.0 dB]
+        vv_norm = np.clip((sar_sigma0_db - (-32.0)) / ((-10.0) - (-32.0)), 0.0, 1.0)
+        # Synthesize cross-pol VH with physical cross-polarization damping offset if single band
+        vh_db = sar_sigma0_db - 10.5
+        vh_norm = np.clip((vh_db - (-42.0)) / ((-20.0) - (-42.0)), 0.0, 1.0)
+
+        # Ambient ocean clutter statistics
+        ocean_mean_db = float(np.percentile(sar_sigma0_db[sea_mask == 1], 65)) if np.any(sea_mask == 1) else -14.0
 
         prob_map = None
 
         # Execute ONNX Runtime inference if available
         if self.ort_session is not None:
             try:
-                # Resize or crop to 400x400 for model input
                 import cv2
-                input_400 = cv2.resize(norm_input, (400, 400), interpolation=cv2.INTER_LINEAR)
-                tensor_in = np.expand_dims(np.expand_dims(input_400, axis=0), axis=0).astype(np.float32)
-                input_name = self.ort_session.get_inputs()[0].name
+                input_meta = self.ort_session.get_inputs()[0]
+                input_name = input_meta.name
+                input_shape = input_meta.shape
                 output_name = self.ort_session.get_outputs()[0].name
-                raw_out = self.ort_session.run([output_name], {input_name: tensor_in})[0]
-                
-                if raw_out.size > 1:
-                    # Dense probability mask (1, 1, 400, 400)
-                    prob_400 = raw_out.squeeze()
-                    prob_map = cv2.resize(prob_400, (cols, rows), interpolation=cv2.INTER_LINEAR)
+
+                req_channels = 2 if len(input_shape) >= 2 and input_shape[1] == 2 else 1
+                req_h = input_shape[2] if len(input_shape) >= 4 and isinstance(input_shape[2], int) else 512
+                req_w = input_shape[3] if len(input_shape) >= 4 and isinstance(input_shape[3], int) else 512
+
+                vv_resized = cv2.resize(vv_norm, (req_w, req_h), interpolation=cv2.INTER_LINEAR)
+                if req_channels == 2:
+                    vh_resized = cv2.resize(vh_norm, (req_w, req_h), interpolation=cv2.INTER_LINEAR)
+                    tensor_in = np.stack([vv_resized, vh_resized], axis=0).reshape(1, 2, req_h, req_w).astype(np.float32)
                 else:
-                    # Scalar classification logit
+                    tensor_in = vv_resized.reshape(1, 1, req_h, req_w).astype(np.float32)
+
+                raw_out = self.ort_session.run([output_name], {input_name: tensor_in})[0]
+
+                if raw_out.size > 1:
+                    # Output is dense logits [1, 1, H, W] -> apply sigmoid
+                    logits = raw_out.squeeze()
+                    prob_out = 1.0 / (1.0 + np.exp(-np.clip(logits, -20.0, 20.0)))
+                    prob_map = cv2.resize(prob_out, (cols, rows), interpolation=cv2.INTER_LINEAR)
+                else:
                     scalar_logit = float(raw_out.flat[0])
                     p_slick = 1.0 / (1.0 + np.exp(-max(-20.0, min(20.0, scalar_logit))))
-                    prob_map = np.full((rows, cols), p_slick, dtype=np.float32) * norm_input
+                    prob_map = np.full((rows, cols), p_slick, dtype=np.float32)
             except Exception as e:
-                print(f"ONNX inference exception: {e}")
+                print(f"[SARSPILLSegmentationEngine WARN] ONNX inference failed: {e}")
                 prob_map = None
 
-        # Execute PyTorch inference if ONNX was unavailable or failed
+        # Execute PyTorch inference if ONNX was unavailable
         if prob_map is None and self.model is not None and TORCH_AVAILABLE:
-            tensor_in = torch.from_numpy(norm_input).unsqueeze(0).unsqueeze(0).to(self.device)
-            with torch.no_grad():
-                prob_map = self.model(tensor_in).squeeze().cpu().numpy()
+            try:
+                tensor_in = torch.from_numpy(vv_norm).unsqueeze(0).unsqueeze(0).to(self.device)
+                with torch.no_grad():
+                    prob_map = self.model(tensor_in).squeeze().cpu().numpy()
+            except Exception as e:
+                print(f"[SARSPILLSegmentationEngine WARN] PyTorch inference failed: {e}")
+                prob_map = None
 
         if prob_map is None:
-            # Physics-based baseline probability if no deep engine loaded
-            prob_map = norm_input
+            # Physical capillary depression fallback
+            prob_map = np.clip(((ocean_mean_db - 4.5) - sar_sigma0_db) / 6.0, 0.0, 1.0)
+
+        # 2. Strict land-sea exclusion: zero out all terrestrial land and nodata pixels
+        prob_map = prob_map * sea_mask.astype(np.float32)
 
         # 3. Capillary wave damping score relative to ambient ocean clutter
-        ocean_mean_db = float(np.percentile(sar_sigma0_db[sea_mask == 1], 65)) if np.any(sea_mask == 1) else -14.0
-        # Depression of Δσ0 ≤ -4.5 dB maps to positive damping score
         damping_delta = (ocean_mean_db - 4.5) - sar_sigma0_db
         damping_score = np.clip(damping_delta / 4.0, 0.0, 1.0) * sea_mask
 
         # Conjunction of neural network activation and microwave backscatter damping
-        combined_prob = (prob_map * 0.5) + (damping_score * 0.5)
-        binary_mask = ((combined_prob >= sensitivity_threshold) & (damping_score > 0.05) & (sea_mask == 1)).astype(np.uint8)
+        combined_prob = (prob_map * 0.6) + (damping_score * 0.4)
+        binary_mask = ((combined_prob >= sensitivity_threshold) & (sea_mask == 1)).astype(np.uint8)
 
         # Morphological cleanup (close micro-gaps, remove isolated speckle singletons)
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))

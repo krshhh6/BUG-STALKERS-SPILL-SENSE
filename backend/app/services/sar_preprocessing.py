@@ -58,20 +58,33 @@ class SARPreprocessor:
     def mask_land_pixels(
         sar_db: np.ndarray,
         land_threshold_db: float = -4.0,
-        morph_cleanup: bool = True
+        morph_cleanup: bool = True,
+        bounds: Optional[dict] = None,
+        transform: Optional[list] = None
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Creates a marine surface mask by excluding high-backscatter land terrain.
+        Creates a marine surface mask by excluding authoritative land terrain and nodata.
+        Uses LandSeaMaskService (Natural Earth 50m + regional coastlines) when bounds are available,
+        falling back to advanced radiometric + texture discrimination.
         Returns: (masked_sar_db, sea_binary_mask)
         """
-        # Land returns in C-band are significantly brighter (typically > -4 dB) than open water (-12 to -18 dB)
-        sea_mask = (sar_db < land_threshold_db).astype(np.uint8)
+        try:
+            from app.services.land_sea_mask_service import LandSeaMaskService
+            mask_svc = LandSeaMaskService.get_instance()
+            mask_res = mask_svc.generate_ocean_mask(
+                raster_shape=sar_db.shape[:2],
+                bounds=bounds,
+                transform=transform,
+                sar_raster=sar_db
+            )
+            sea_mask = mask_res.ocean_mask
+        except Exception as e:
+            # Fallback radiometric thresholding
+            sea_mask = (sar_db < land_threshold_db).astype(np.uint8)
+            if morph_cleanup:
+                sea_mask = median_filter(sea_mask, size=3)
 
-        if morph_cleanup:
-            # Simple median filter on the mask to remove isolated metallic scatterers
-            sea_mask = median_filter(sea_mask, size=3)
-
-        # Set land pixels to neutral zero
+        # Set land/nodata pixels to neutral zero / background
         masked_sar = np.where(sea_mask == 1, sar_db, -100.0)
         return masked_sar, sea_mask
 

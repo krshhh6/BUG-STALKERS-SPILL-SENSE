@@ -747,13 +747,17 @@ export const DetectionView: React.FC<DetectionViewProps> = ({
                     : '🛢️ OIL SPILL DETECTED'
                 )}
                 {result.prediction === 'no_oil' && '✅ CLEAN OCEAN'}
-                {result.prediction === 'invalid_sar' && '⚠️ INVALID INPUT: NOT AN OCEAN / SAR RADAR IMAGE'}
+                {result.prediction === 'invalid_sar' && (
+                  result.rejectionReason?.includes('Terrestrial Land')
+                    ? '⛰️ TERRESTRIAL LAND / MOUNTAIN TERRAIN DETECTED'
+                    : '⚠️ INVALID INPUT: NOT AN OCEAN / SAR RADAR IMAGE'
+                )}
               </h2>
               <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--text-muted)' }}>
                 {result.prediction === 'invalid_sar' ? (
                   <>
                     <span style={{ color: '#DC2626', fontWeight: 600 }}>Reason: {result.rejectionReason}</span>
-                    <span>Domain: Out of Distribution (OOD)</span>
+                    <span>Domain: Terrestrial Exclusion</span>
                   </>
                 ) : (
                   <>
@@ -783,7 +787,9 @@ export const DetectionView: React.FC<DetectionViewProps> = ({
 
           {result.prediction === 'invalid_sar' && (
             <div style={{ padding: '10px 20px', background: 'rgba(239, 68, 68, 0.08)', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', color: '#DC2626', fontSize: 12 }}>
-              <strong>Notice:</strong> This model is calibrated strictly for Synthetic Aperture Radar (SAR) ocean backscatter imagery (Sentinel-1 / ISRO RISAT/EOS-04). <strong>UI screenshots, web app screenshots, dark-mode app captures, optical photos, documents, and colored images</strong> are automatically rejected to prevent false positives. Please upload a raw grayscale SAR ocean scene.
+              <strong>Notice:</strong> {result.rejectionReason?.includes('Terrestrial Land')
+                ? 'Terrestrial land, mountain topography, inland valleys, and radar shadows are strictly excluded. SpillSense detects oil spills exclusively across marine / offshore ocean surfaces.'
+                : 'This model is calibrated strictly for Synthetic Aperture Radar (SAR) ocean backscatter imagery (Sentinel-1 / ISRO RISAT/EOS-04). UI screenshots, web app screenshots, dark-mode app captures, optical photos, documents, and colored images are automatically rejected to prevent false positives. Please upload a raw grayscale SAR ocean scene.'}
               {result.rejectionReason && (
                 <span style={{ marginLeft: 8, opacity: 0.85 }}>— <em>{result.rejectionReason}</em></span>
               )}

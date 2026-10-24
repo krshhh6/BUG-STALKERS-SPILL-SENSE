@@ -89,8 +89,9 @@ def _execute_detection(req: DetectionRequest) -> Dict[str, Any]:
     sigma0_db = SARPreprocessor.calibrate_to_sigma0_db(vv_arr, cal_factor)
     # 2. Adaptive Lee speckle filtering
     filtered_db = SARPreprocessor.lee_speckle_filter(sigma0_db, window_size=5)
-    # 3. Land-sea masking
-    masked_sar, sea_mask = SARPreprocessor.mask_land_pixels(filtered_db)
+    # 3. Authoritative Land-sea masking
+    bbox_dict = {"min_lon": bbox[0], "min_lat": bbox[1], "max_lon": bbox[2], "max_lat": bbox[3]}
+    masked_sar, sea_mask = SARPreprocessor.mask_land_pixels(filtered_db, bounds=bbox_dict)
 
     # ML Inference via PyTorch U-Net (SOS benchmark)
     polygons = segmentation_engine.run_inference(

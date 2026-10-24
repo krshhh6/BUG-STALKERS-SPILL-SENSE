@@ -146,7 +146,39 @@ export async function runSentinel1Detection(
   _date?: string,
   _threshold = 0.35
 ): Promise<DetectionResult> {
-  // Approximate centroid from AOI
+  // 1. Try real production backend detection endpoint
+  try {
+    const res = await fetch('/api/v1/detect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        aoi: aoi,
+        sensitivity: _threshold,
+        async_mode: false,
+      }),
+    });
+
+    if (res.ok) {
+      const liveData = await res.json();
+      if (liveData && (liveData.status === 'detected' || liveData.status === 'no_oil_detected')) {
+        console.info('[DetectionService] Live Sentinel-1 SAR U-Net detection executed via backend:', liveData);
+        return {
+          status: liveData.status,
+          polygons: liveData.polygons || [],
+          total_detected_area_km2: liveData.total_detected_area_km2 || 0.0,
+          model_version: liveData.model_version || 'compact-s1-sar-unet-v2.5',
+          sensor: liveData.sensor || 'Sentinel-1A C-SAR IW GRD',
+          scene_timestamp: liveData.scene_timestamp || new Date().toISOString(),
+          scene_id: liveData.scene_id || 'S1A_LIVE_SCENE',
+          polarization: liveData.polarization || 'VV+VH',
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[DetectionService] Live backend detection unreachable, using verified benchmark scenario simulation:', err);
+  }
+
+  // 2. Offline / Demo Scenario Benchmark Simulation Fallback (Clearly Tagged)
   const coords = aoi.coordinates[0];
   const lats = coords.map((c: [number, number]) => c[1]);
   const lngs = coords.map((c: [number, number]) => c[0]);
@@ -159,10 +191,10 @@ export async function runSentinel1Detection(
     status: 'detected',
     polygons,
     total_detected_area_km2: polygons[1]?.area_km2 || polygons[0].area_km2,
-    model_version: 'unet-s1-sar-sos-v2.4-cdse',
-    sensor: 'Sentinel-1A C-SAR IW GRD (VV)',
+    model_version: 'SpillSegNet-v3 (Offline Benchmark Scenario)',
+    sensor: 'Sentinel-1A C-SAR IW GRD (VV+VH)',
     scene_timestamp: new Date().toISOString(),
-    scene_id: `S1A_IW_GRDH_1SDV_${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}_056540_06ED90_2B48`,
+    scene_id: `S1A_IW_GRDH_1SDV_${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}_BENCHMARK`,
     polarization: 'VV+VH',
   };
 }
