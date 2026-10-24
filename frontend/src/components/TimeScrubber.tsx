@@ -68,7 +68,7 @@ export const TimeScrubber: React.FC<TimeScrubberProps> = ({ onTimeChange }) => {
   }, [isPlaying]);
 
   return (
-    <div className="time-scrubber-bar">
+    <div className="time-scrubber-bar" style={{ padding: '6px 24px' }}>
       <div className="scrubber-controls">
         <div className="scrubber-playback">
           <button

@@ -9,12 +9,12 @@ redis_url = os.getenv("REDIS_URL", "")
 if redis_url and not ("localhost" in redis_url or "127.0.0.1" in redis_url):
     try:
         mgr = socketio.AsyncRedisManager(redis_url)
-        sio = socketio.AsyncServer(async_mode='asgi', client_manager=mgr, cors_allowed_origins='*')
+        sio = socketio.AsyncServer(async_mode='asgi', client_manager=mgr, cors_allowed_origins=[])
     except Exception as e:
         print(f"[Socket.IO] Redis manager init failed ({e}), using in-memory broker")
-        sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
+        sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins=[])
 else:
-    sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
+    sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins=[])
 
 # This is the ASGI app that FastAPI will mount
 socket_app = socketio.ASGIApp(sio)

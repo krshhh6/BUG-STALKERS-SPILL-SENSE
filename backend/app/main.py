@@ -17,6 +17,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_private_network_access_header(request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
+
+
 @app.get("/")
 async def root():
     return {
@@ -58,6 +65,14 @@ from app.api.v1.active_learning_router import router as active_learning_router
 app.include_router(active_learning_router, prefix=f"{settings.API_V1_STR}/active-learning")
 app.include_router(active_learning_router, prefix="/api/active-learning")
 
+
+# Mount Static Files for Forensic Evidence PDF Downloads
+import os
+from fastapi.staticfiles import StaticFiles
+
+evidence_storage_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "storage", "evidence")
+os.makedirs(evidence_storage_dir, exist_ok=True)
+app.mount("/static/evidence", StaticFiles(directory=evidence_storage_dir), name="evidence_static")
 
 # Mount Socket.IO for Real-Time Event Broadcasting
 from app.core.socket_server import socket_app

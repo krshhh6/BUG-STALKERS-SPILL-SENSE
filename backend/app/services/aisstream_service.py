@@ -53,12 +53,13 @@ class AISStreamService:
     def __init__(self, api_key: Optional[str] = None):
         if self._initialized:
             return
-        self.api_key = api_key or os.getenv("AISSTREAM_API_KEY", "47c9a557f534c95dcc5a3912e4328cebafb3d861")
+        from app.core.config import settings
+        self.api_key = api_key or os.getenv("AISSTREAM_API_KEY") or getattr(settings, "AISSTREAM_API_KEY", "")
         self._vessels: Dict[str, Dict[str, Any]] = {}
         self._is_running = False
         self._task = None
         self._initialized = True
-        logger.info("AISStreamService initialized with API key.")
+        logger.info("AISStreamService initialized.")
 
     def start_background_stream(self, loop=None):
         """Launches the background WebSocket listener task."""

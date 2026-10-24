@@ -11,6 +11,7 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 ENV/
 build/
 dist/
@@ -48,3 +49,8 @@ backend/storage/
 ml/logs/
 # Internal specification copy
 Files/README.md
+
+qa_artifacts/
+*.db
+*.sqlite
+*.sqlite3

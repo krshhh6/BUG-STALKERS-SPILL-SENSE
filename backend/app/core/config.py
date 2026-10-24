@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     CDSE_PASSWORD: str = ""
     
     # AISStream API Key
-    AISSTREAM_API_KEY: str = "47c9a557f534c95dcc5a3912e4328cebafb3d861"
+    AISSTREAM_API_KEY: str = ""
 
     # CORS Origins
     CORS_ORIGINS: List[str] = ["http://localhost:8080", "http://localhost:3000", "http://localhost:5173", "*"]

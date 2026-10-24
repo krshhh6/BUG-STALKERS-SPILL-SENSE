@@ -1,31 +1,36 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import os
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
 
-# We expect a PostGIS enabled Postgres connection string
 SQLALCHEMY_DATABASE_URL = os.getenv(
     "DATABASE_URL", 
     "postgresql://postgres:postgres@localhost:5432/spillsense"
 )
-# Render and cloud providers often provide 'postgres://' which SQLAlchemy 1.4+ rejects
 if SQLALCHEMY_DATABASE_URL and SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
     SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-
+use_sqlite = False
 try:
-    engine = create_engine(SQLALCHEMY_DATABASE_URL)
-    # Quick probe to verify the dialect driver loaded
-    _ = engine.dialect
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-except Exception as e:
-    # Graceful fallback to SQLite in-memory for standalone / dev mode without PostgreSQL driver
     engine = create_engine(
-        "sqlite:///:memory:",
+        SQLALCHEMY_DATABASE_URL,
+        connect_args={"connect_timeout": 2} if "postgres" in SQLALCHEMY_DATABASE_URL else {}
+    )
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+except Exception:
+    use_sqlite = True
+
+if use_sqlite:
+    # Resilient offline persistence on Drive D: without Docker
+    engine = create_engine(
+        "sqlite:///D:/SIH-26143-OIL-Spill/SIH-26143-OIL-Spill/spill_sense.db",
         connect_args={"check_same_thread": False}
     )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -37,4 +42,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
