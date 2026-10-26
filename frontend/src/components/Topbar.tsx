@@ -15,6 +15,7 @@ interface TopbarProps {
   onOpenForensicModal: () => void;
   onOpenSentinelHubModal: () => void;
   onOpenBhoonidhiModal: () => void;
+  onOpenApiKeySetup?: () => void;
   onSearchPlace?: (query: string) => void;
   onSelectSearchResult?: (result: MaritimeSearchResult) => void;
   scenarios?: Record<string, Scenario>;
@@ -32,6 +33,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   onOpenForensicModal,
   onOpenSentinelHubModal: _onOpenSentinelHubModal,
   onOpenBhoonidhiModal: _onOpenBhoonidhiModal,
+  onOpenApiKeySetup,
   onSearchPlace,
   onSelectSearchResult,
   scenarios,
@@ -476,6 +478,19 @@ export const Topbar: React.FC<TopbarProps> = ({
             </div>
           )}
         </div>
+
+        {/* C2 API Keys & Live Feeds Setup */}
+        {onOpenApiKeySetup && (
+          <button
+            className="btn btn-secondary"
+            onClick={onOpenApiKeySetup}
+            style={{ padding: '4px 9px', fontSize: 11, gap: 5, borderColor: 'rgba(139, 92, 246, 0.4)' }}
+            title="Configure C2 API Keys (AISStream, Cesium Ion, CDSE)"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#a855f7' }}>key</span>
+            API Keys
+          </button>
+        )}
 
         {/* Forensic Dossier */}
         <button

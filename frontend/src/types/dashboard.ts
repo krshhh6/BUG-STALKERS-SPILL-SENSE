@@ -30,7 +30,7 @@ export interface CandidateVessel {
   risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 }
 
-export type TabType = 'dashboard' | 'drift' | 'attribution' | 'evidence' | 'analytics' | 'detection';
+export type TabType = 'dashboard' | 'drift' | 'attribution' | 'evidence' | 'analytics' | 'detection' | 'globe';
 export type DimensionMode = '2D' | '3D';
 export type BaseLayerType = 'bhuvan-satellite' | 'satellite' | 'sar' | 'carto-voyager' | 'carto-dark' | 'sar-vh' | 'opensea' | 'msn' | 'day' | 'dark' | 'bhuvan-vector' | 'google-satellite' | 'arcgis' | 'bhuvan';
 

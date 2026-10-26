@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import type { TabType } from '../types/dashboard';
 import { LimelightNav, type NavItem } from '@/components/ui/limelight-nav';
-import { Map, FlaskConical, Ship, ShieldCheck, Menu, X } from 'lucide-react';
+import { Map, FlaskConical, Ship, ShieldCheck, Menu, X, Globe2 } from 'lucide-react';
 
 interface MobileNavProps {
   activeTab: TabType;
@@ -25,7 +25,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   // 3: evidence (Evidence)
   // 4: menu / drawer
   const activeIndex = useMemo(() => {
-    if (isDrawerOpen) return 4;
+    if (isDrawerOpen) return 5;
     switch (activeTab) {
       case 'dashboard':
         return 0;
@@ -35,8 +35,10 @@ export const MobileNav: React.FC<MobileNavProps> = ({
         return 2;
       case 'evidence':
         return 3;
+      case 'globe':
+        return 4;
       default:
-        return 4; // drift or analytics routes
+        return 5; // drift or analytics routes
     }
   }, [activeTab, isDrawerOpen]);
 
@@ -77,6 +79,15 @@ export const MobileNav: React.FC<MobileNavProps> = ({
         onClick: () => {
           if (isDrawerOpen) onToggleDrawer();
           onSelectTab('evidence');
+        },
+      },
+      {
+        id: 'nav-globe',
+        icon: <Globe2 className="w-5 h-5" />,
+        label: '3D Globe',
+        onClick: () => {
+          if (isDrawerOpen) onToggleDrawer();
+          onSelectTab('globe');
         },
       },
       {

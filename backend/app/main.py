@@ -65,6 +65,10 @@ from app.api.v1.active_learning_router import router as active_learning_router
 app.include_router(active_learning_router, prefix=f"{settings.API_V1_STR}/active-learning")
 app.include_router(active_learning_router, prefix="/api/active-learning")
 
+from app.api.v1.setup_router import router as setup_router
+app.include_router(setup_router, prefix=settings.API_V1_STR)
+app.include_router(setup_router, prefix="/api")
+
 
 # Mount Static Files for Forensic Evidence PDF Downloads
 import os
@@ -83,5 +87,3 @@ async def startup_event():
     from app.services.aisstream_service import AISStreamService
     stream = AISStreamService()
     stream.start_background_stream()
-
-

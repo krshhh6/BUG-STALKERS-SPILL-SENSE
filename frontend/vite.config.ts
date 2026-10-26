@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
+import cesium from 'vite-plugin-cesium'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -50,7 +51,9 @@ function onnxWasmPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), onnxWasmPlugin()],
+  // cesium() must come before react() so it can intercept the Cesium asset
+  // copy step before Vite resolves modules.
+  plugins: [(cesium as unknown as () => Plugin)(), react(), onnxWasmPlugin()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

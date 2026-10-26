@@ -12,7 +12,7 @@ interface AttributionViewProps {
   activeDriftSimulation?: LiveSimulationResult | null;
 }
 
-interface CandidateVesselItem {
+export interface CandidateVesselItem {
   mmsi: string;
   imo: string;
   name: string;
@@ -48,7 +48,7 @@ interface CandidateVesselItem {
   };
 }
 
-const DEFAULT_SCENARIO_VESSELS: Record<string, CandidateVesselItem[]> = {
+export const DEFAULT_SCENARIO_VESSELS: Record<string, CandidateVesselItem[]> = {
   'INC-2026-001': [
     {
       mmsi: '419001234',

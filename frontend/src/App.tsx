@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import type { TabType, SarDriftPayload } from './types/dashboard';
 import type { LiveSimulationResult } from './services/marineWeatherService';
 import { SCENARIOS } from './data/scenarios';
@@ -14,6 +14,7 @@ import { DetectionView } from './components/views/DetectionView';
 import { ForensicModal } from './components/modals/ForensicModal';
 import { SentinelHubModal } from './components/modals/SentinelHubModal';
 import { BhoonidhiModal } from './components/modals/BhoonidhiModal';
+import { ApiKeySetupModal } from './components/modals/ApiKeySetupModal';
 import {
   searchMaritimeCatalog,
   parseGpsCoordinates,
@@ -22,16 +23,20 @@ import {
 import { MobileNav } from './components/MobileNav';
 import { MobileDrawer } from './components/MobileDrawer';
 import { OpeningScreen } from './components/OpeningScreen';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+// Lazy-load GlobeView so the ~4 MB Cesium bundle is only fetched on demand.
+const GlobeView = lazy(() => import('./components/views/GlobeView'));
 
 export const App: React.FC = () => {
   const [showOpeningScreen, setShowOpeningScreen] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [currentScenarioKey, setCurrentScenarioKey] = useState<string>('');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [coordinates, setCoordinates] = useState<string>('15.5000°N, 79.0000°E (Indian Ocean EEZ)');
+  const [coordinates, setCoordinates] = useState<string>('15.5000Â°N, 79.0000Â°E (Indian Ocean EEZ)');
   const [isForensicOpen, setIsForensicOpen] = useState<boolean>(false);
   const [isSentinelHubOpen, setIsSentinelHubOpen] = useState<boolean>(false);
   const [isBhoonidhiOpen, setIsBhoonidhiOpen] = useState<boolean>(false);
+  const [isApiKeySetupOpen, setIsApiKeySetupOpen] = useState<boolean>(false);
   const [isMapFullscreen, setIsMapFullscreen] = useState<boolean>(false);
   const [targetLocation, setTargetLocation] = useState<{
     lat: number;
@@ -55,7 +60,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMapFullscreen]);
 
-  // Live incident data — falls back to static SCENARIOS when backend is offline
+  // Live incident data â€” falls back to static SCENARIOS when backend is offline
   const { incidents, scenarios: liveScenarios } = useIncidents();
   const scenarios = { ...SCENARIOS, ...liveScenarios };
 
@@ -114,10 +119,10 @@ export const App: React.FC = () => {
     setCurrentScenarioKey(key);
     if (key && scenarios[key]) {
       const s = scenarios[key];
-      setCoordinates(`${s.lat.toFixed(4)}°N, ${s.lng.toFixed(4)}°E`);
+      setCoordinates(`${s.lat.toFixed(4)}Â°N, ${s.lng.toFixed(4)}Â°E`);
       setTargetLocation(null);
     } else {
-      setCoordinates('15.5000°N, 79.0000°E (Indian Ocean EEZ)');
+      setCoordinates('15.5000Â°N, 79.0000Â°E (Indian Ocean EEZ)');
       setTargetLocation(null);
     }
   };
@@ -127,7 +132,7 @@ export const App: React.FC = () => {
     if (result.scenarioKey && scenarios[result.scenarioKey]) {
       handleSelectScenario(result.scenarioKey);
     } else {
-      setCoordinates(`${result.lat.toFixed(4)}°N, ${result.lng.toFixed(4)}°E (${result.title})`);
+      setCoordinates(`${result.lat.toFixed(4)}Â°N, ${result.lng.toFixed(4)}Â°E (${result.title})`);
       setTargetLocation({
         lat: result.lat,
         lng: result.lng,
@@ -148,7 +153,7 @@ export const App: React.FC = () => {
       if (coords) {
         handleSelectSearchResult({
           id: 'coord-custom',
-          title: `GPS: ${coords.lat.toFixed(4)}°N, ${coords.lng.toFixed(4)}°E`,
+          title: `GPS: ${coords.lat.toFixed(4)}Â°N, ${coords.lng.toFixed(4)}Â°E`,
           category: 'coordinate',
           lat: coords.lat,
           lng: coords.lng,
@@ -239,7 +244,7 @@ export const App: React.FC = () => {
         onSelectTab={handleSelectTab}
         currentScenarioKey={currentScenarioKey}
         onSelectScenario={handleSelectScenario}
-        onOpenSettings={() => setIsForensicOpen(true)}
+        onOpenSettings={() => setIsApiKeySetupOpen(true)}
         incidents={allIncidents}
       />
 
@@ -258,6 +263,7 @@ export const App: React.FC = () => {
           onOpenForensicModal={() => setIsForensicOpen(true)}
           onOpenSentinelHubModal={() => setIsSentinelHubOpen(true)}
           onOpenBhoonidhiModal={() => setIsBhoonidhiOpen(true)}
+          onOpenApiKeySetup={() => setIsApiKeySetupOpen(true)}
           onSearchPlace={handleSearchPlace}
           onSelectSearchResult={handleSelectSearchResult}
           scenarios={scenarios}
@@ -268,7 +274,7 @@ export const App: React.FC = () => {
           className="main"
           id="main-content"
           style={{
-            overflow: activeTab === 'dashboard' ? 'hidden' : 'auto',
+            overflow: activeTab === 'dashboard' || activeTab === 'globe' ? 'hidden' : 'auto',
           }}
         >
           {activeTab === 'dashboard' && (
@@ -311,7 +317,7 @@ export const App: React.FC = () => {
                   lng: v.lng,
                   zoom: 12,
                   title: v.name,
-                  sub: `MMSI: ${v.mmsi} · AIS Suspect Track`,
+                  sub: `MMSI: ${v.mmsi} Â· AIS Suspect Track`,
                   category: 'vessel',
                 });
                 setActiveTab('dashboard');
@@ -330,6 +336,26 @@ export const App: React.FC = () => {
 
           {activeTab === 'analytics' && <AnalyticsView incidents={allIncidents} />}
 
+          {activeTab === 'globe' && (
+            <ErrorBoundary fallbackTitle="3D Tactical Globe Error" onReset={() => setActiveTab('dashboard')}>
+              <Suspense
+                fallback={
+                  <div style={{ display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:16,background:'#050508',color:'#a78bfa' }}>
+                    <div className="w-12 h-12 border-4 border-violet-600 border-t-violet-300 rounded-full animate-spin" />
+                    <p style={{ fontFamily:'monospace',fontSize:13,margin:0 }}>Loading 3D Globe…</p>
+                  </div>
+                }
+              >
+                <GlobeView
+                  currentScenario={scenario}
+                  incidents={allIncidents}
+                  scenarios={scenarios}
+                  onSelectTab={handleSelectTab}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          )}
+
           {activeTab === 'detection' && (
             <DetectionView
               onSelectTab={setActiveTab}
@@ -340,6 +366,11 @@ export const App: React.FC = () => {
           )}
         </main>
       </div>
+
+      <ApiKeySetupModal
+        isOpen={isApiKeySetupOpen}
+        onClose={() => setIsApiKeySetupOpen(false)}
+      />
 
       {/* MODALS */}
       <ForensicModal
@@ -376,7 +407,7 @@ export const App: React.FC = () => {
         onSelectTab={handleSelectTab}
         currentScenarioKey={currentScenarioKey}
         onSelectScenario={handleSelectScenario}
-        onOpenSettings={() => setIsForensicOpen(true)}
+        onOpenSettings={() => setIsApiKeySetupOpen(true)}
         incidents={allIncidents}
       />
     </div>
