@@ -1,0 +1,9 @@
+# Cursor Rules — SpillSense (SIH 26143)
+# Read the complete context in AGENTS.md before planning or generating code.
+
+You must follow the architecture, conventions, and constraints documented in AGENTS.md:
+- Frontend: React 19 + TypeScript + Vite + CesiumJS 1.146 + Leaflet + Tailwind CSS
+- Backend: FastAPI + Uvicorn + WebSockets + DuckDB
+- Deploy: Frontend on Vercel; Backend on persistent server (Render/Railway/VPS)
+- Cesium: Never use negative eyeOffset; always set disableDepthTestDistance: Number.POSITIVE_INFINITY
+- Run `npm --prefix frontend run test` and `npm --prefix frontend run build` to verify changes.
