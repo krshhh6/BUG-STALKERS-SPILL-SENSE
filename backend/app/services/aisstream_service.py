@@ -54,7 +54,7 @@ class AISStreamService:
         if self._initialized:
             return
         from app.core.config import settings
-        self.api_key = api_key or os.getenv("AISSTREAM_API_KEY") or getattr(settings, "AISSTREAM_API_KEY", "") or "a5905a6907b539642a35fb5f80dc5b19e423f4a4" (feat(c2): integrate 3D tactical globe with live AIS tracking, glassmorphism UI, and CDSE setup)
+        self.api_key = api_key or os.getenv("AISSTREAM_API_KEY") or getattr(settings, "AISSTREAM_API_KEY", "") or "a5905a6907b539642a35fb5f80dc5b19e423f4a4"
         self._vessels: Dict[str, Dict[str, Any]] = {}
         self._is_running = False
         self._task = None
