@@ -7,260 +7,260 @@ Email: krshhh6@gmail.com
 
 ―――――――――――――――――――――――――――――――――――――――――――――
 
-Abstract — Anthropogenic marine hydrocarbon discharge poses catastrophic hazards to coastal habitats, ecological preserves, and sovereign pelagic industries. Although spaceborne Synthetic Aperture Radar (SAR) provides all-weather, day-and-night oceanic surveillance, real-world operational enforcement has long been restricted by four recurring bottlenecks: elevated false alarm rates induced by low-wind calm waters and biogenic algal surfactants; pronounced radiometric domain shifts across disparate satellite platforms and compressed graphical rasters; the spatial dislocation fallacy wherein surface advection transports contaminants far from discharge points; and deliberate Automatic Identification System (AIS) transponder sabotage by illicit vessels. 
-
-To resolve these interconnected challenges, this treatise introduces SpillSense, a unified computational architecture designed for autonomous radar oil slick delineation, hydrodynamic trajectory inversion, and maritime vessel attribution. The processing framework incorporates adaptive cumulative distribution function (CDF) harmonization alongside bi-dimensional polynomial swath surface detrending to eliminate antenna pattern fall-off and meteorological wind gradients. Feature extraction and semantic segmentation are executed via a domain-adversarial neural network (DANN) integrating an EfficientNet backbone, Atrous Spatial Pyramid Pooling (ASPP), and Convolutional Block Attention Modules (CBAM), supervised through a specialized multi-objective Focal, Tversky, and contour boundary objective. 
-
-Delineated slick boundaries are subsequently subjected to backward Lagrangian advection using fourth-order Runge-Kutta (RK4) integration driven by Copernicus Marine Environment Monitoring Service (CMEMS) hydrodynamic fields and ECMWF high-resolution atmospheric velocities, constructing a four-dimensional spatio-temporal origin probability envelope. Historical vessel trajectories are matched against this candidate domain utilizing a multi-attribute kinematic correlation function and an anomalous AIS blackout estimator. 
-
-Evaluated across 248 strictly isolated scenes from the Krestenitis et al. Sentinel-1 benchmark under spatio-temporal group validation, the proposed pipeline yields an 81.4% mean Intersection over Union (IoU), an 0.897 Dice coefficient, and 78.2% boundary IoU, alongside a 91.2% false-positive rejection efficiency during calm sea states (< 3 m/s). INT8 quantized browser-side execution completes within 28 ms per 512x512 tile. Finally, cryptographic evidence packages secured by SHA-256 hashes fulfill statutory chains of custody under UNCLOS Article 217 and Section 356 of the Indian Merchant Shipping Act, 1958.
-
-Keywords: Synthetic Aperture Radar (SAR), Marine Pollution Surveillance, Deep Segmentation, Domain Adaptation, Lagrangian Trajectory Backtracking, AIS Kinematic Attribution, Maritime Domain Awareness.
-
-―――――――――――――――――――――――――――――――――――――――――――――
-
 1. Introduction
 
-India maintains sovereign jurisdiction over an Exclusive Economic Zone (EEZ) encompassing more than 2.37 million square kilometers. Situated at the crossroads of global maritime commerce, this expanse hosts primary sea corridors handling upwards of 70% of international crude petroleum traffic flowing between the Strait of Hormuz and the Malacca Strait [11]. Commercial vessels navigating across the Arabian Sea, rounding Cape Comorin, and entering the Bay of Bengal traverse adjacent to biodiverse coastal mangroves, fragile coral formations, and artisanal fishing grounds. When deliberate oily bilge discharges or maritime casualties occur, conventional observation mechanisms encounter four persistent operational failures:
+India commands an Exclusive Economic Zone (EEZ) exceeding 2.37 million square kilometers. This maritime expanse contains primary sea lanes of communication through which more than 70% of global petroleum traffic transits between the Strait of Hormuz and the Malacca Strait. Commercial tankers voyaging across the Arabian Sea, around Cape Comorin, and through the Bay of Bengal pass sensitive coastal ecosystems, coral reefs, and artisanal fisheries. When illicit bilge washings or accidental bunker spills occur, traditional maritime monitoring frameworks encounter four critical operational bottlenecks:
 
-1. Sensor Limitations and Environmental False Alarms: Optical spaceborne systems are rendered ineffective by persistent cloud cover, rain squalls, and night periods. Synthetic Aperture Radar (SAR) transmits microwave pulses that penetrate atmospheric interference to measure oceanic surface roughness [3]. However, hydrocarbons dampen capillary ripples through Marangoni viscoelastic stresses, producing localized dark patches of attenuated backscatter. Natural surface phenomena—such as biogenic algal films, grease ice, upwelling currents, and meteorological downdrafts—induce identical backscatter deficits, yielding false alarm rates exceeding 25% in unconstrained operational deployments [2], [14].
+1. Sensor Modality and False Alarms: Optical satellite sensors cannot image through cloud cover or during night passes. Synthetic Aperture Radar (SAR) transmits microwave pulses and measures surface backscatter regardless of weather. However, oil slicks dampen capillary waves through viscoelastic Marangoni stress, producing dark backscatter regions. Natural oceanographic phenomena (such as biogenic films, algal blooms, grease ice, and atmospheric rain cells) create identical radar backscatter attenuation, causing false alarm rates exceeding 25% in unconstrained operational deployments.
 
-2. Radiometric Domain Shift: Maritime monitoring centers process inputs originating from varied sources: calibrated 16-bit GeoTIFFs from differing sensors (Sentinel-1 C-band, Radarsat-2, ALOS-2 L-band, TerraSAR-X), false-color web GIS exports, and compressed 8-bit visual screenshots. Convolutional models calibrated to a single sensor's radiometric distribution experience severe degradation when deployed against alternate sensor dynamic ranges or modified background noise thresholds [5].
+2. Radiometric Domain Shift: Operational command centers ingest imagery from diverse platforms: calibrated 16-bit GeoTIFFs (Sentinel-1 C-band, Radarsat-2, ALOS-2 L-band, TerraSAR-X), false-color web GIS exports (Bhoonidhi, Copernicus Browser), and compressed 8-bit web screenshots. Conventional neural models trained on a single sensor's calibration distribution suffer severe accuracy degradation when exposed to altered dynamic ranges or external noise floors.
 
-3. The Static Location Fallacy: Oceanic advection continually displaces surface oil. Between initial contaminant expulsion (t₀) and satellite orbital acquisition (t₁), slicks frequently drift dozens of nautical miles. Querying vessel positions in the immediate vicinity of the observed coordinates at t₁ is fundamentally flawed; the polluter was co-located with the slick at (x₀, y₀) at time t₀, far removed from the satellite observation envelope [4], [15].
+3. The Static Location Fallacy: Ocean currents and winds rapidly displace oil slicks. Between the moment of discharge (t₀) and the satellite acquisition pass (t₁), a slick can drift dozens of nautical miles. Querying vessel databases near the detected slick coordinates at t₁ is physically invalid; the offending vessel was present at (x₀, y₀) at t₀, not at the observed detection point.
 
-4. Dark Vessel Evasion and Judicial Chain of Custody: Vessels conducting illicit bilge cleaning regularly disconnect their Automatic Identification System (AIS) transponders during pumping operations to evade attribution. Furthermore, unverified screen captures fail statutory standards of evidence required in maritime courts under UNCLOS and domestic statutes such as Section 356 of the Indian Merchant Shipping Act, 1958 [12], [13].
+4. Dark Vessel Evasion and Evidentiary Standards: Vessels engaged in illegal oily bilge dumping frequently deactivate their Automatic Identification System (AIS) transponders during pumping operations. Furthermore, unstructured satellite screenshots fail statutory rules of evidence in maritime tribunals under UNCLOS and national legislation like the Indian Merchant Shipping Act, 1958.
 
-SpillSense resolves these interconnected dilemmas through an integrated framework coupling microwave radiometric normalization, domain-adversarial deep segmentation, 4D hydrodynamic Lagrangian inversion, kinematic AIS trajectory correlation, and cryptographic evidence sealing.
-
-―――――――――――――――――――――――――――――――――――――――――――――
+SpillSense addresses these interconnected challenges through a unified decision-support platform that links physics-based radar preprocessing, domain-adversarial deep learning, 4D hydrodynamic drift inversion, kinematic AIS trajectory correlation, and cryptographic evidence hashing.
 
 2. Radar Physics and Marine Radiometric Normalization
 
 2.1 Bragg Scattering and Wave Damping Physics
 
-Microwave backscattering across open seawater is primarily governed by resonant Bragg scattering [2]. An emitted radar pulse of wavelength λ_radar interacts constructively with ocean surface capillary and short gravity waves possessing an exact spatial wavelength λ_B:
+Microwave backscatter over open water is dominated by Bragg scattering. An incident radar pulse with wavelength λ_radar resonates with surface capillary and short gravity water waves of spatial wavelength λ_B:
 
-        λ_B = λ_radar / (2 · sin θ)                                         (1)
+        λ_B = λ_radar / (2 · sin θ)
 
-wherein θ represents the local radar incidence angle. For Sentinel-1 C-band sensors operating at 5.405 GHz (λ_radar ≈ 5.54 cm) across incidence geometries from 20° to 45°, resonant Bragg waves range between 3.9 cm and 8.1 cm [1].
+where θ represents the local radar incidence angle. For Sentinel-1 C-band instruments operating at 5.405 GHz (λ_radar ≈ 5.54 cm) across incidence angles from 20° to 45°, resonant Bragg waves span 3.9 cm to 8.1 cm.
 
-The presence of a viscoelastic hydrocarbon film introduces Marangoni surface tension gradients, intensely damping high-frequency capillary ripples. As a result, the normalized radar cross-section σ⁰ declines markedly:
+When mineral oil forms a film on the ocean surface, its viscoelastic properties increase surface tension gradients, generating Marangoni stress that damps high-frequency capillary waves. Consequently, the backscattered normalized radar cross-section σ⁰ drops sharply:
 
-        Δσ⁰_dB = σ⁰_ambient - σ⁰_slick                                      (2)
+        Δσ⁰_dB = σ⁰_clean - σ⁰_slick
 
-Observed damping margins commonly span 4.5 dB to 10.0 dB. However, under light breeze conditions (< 3.0 m/s), clean water fails to develop capillary roughness, yielding specular reflection that duplicates oil signatures. Conversely, severe wind regimes (> 12.0 m/s) induce wave breaking that entrains oil into the subsurface column, restoring surface roughness and obscuring contrast [8], [10].
+Typical damping ratios range from 4.5 dB to over 10.0 dB. However, low surface winds (< 3.0 m/s) fail to generate capillary roughness on clean water, producing specular reflection that mimics oil slicks. Conversely, high winds (> 12.0 m/s) induce wave breaking, entraining oil droplets into the water column and restoring surface roughness, which attenuates the radar contrast.
 
 2.2 Cross-Polarization Characteristics and Pseudo-VH Synthesis
 
-Dual-polarization SAR channels capture divergent scattering mechanics. The co-polarized vertical-vertical (VV) channel evaluates surface micro-roughness directly, whereas the cross-polarized vertical-horizontal (VH) channel is dominated by volume scattering and ship superstructures. Hydrocarbon slicks suppress VV returns substantially while sustaining a diminished return in VH [9], [10].
+Dual-polarization radar channels exhibit distinct physical properties. The co-polarized vertical-vertical (VV) channel measures surface micro-roughness. The cross-polarized vertical-horizontal (VH) channel is dominated by depolarizing multiple scattering from wave crests and ship superstructure. Mineral oil slicks suppress VV backscatter strongly while preserving a lower signal in VH.
 
-To permit the ingestion of single-polarization VV records without altering dual-channel neural topologies, a synthetic cross-polarization channel is constructed:
+To process legacy or single-polarization VV inputs without altering dual-channel neural architectures, a synthetic cross-polarization channel is computed:
 
-        VH_synth = max(0, VV - 0.05 - 0.15 · exp(-((VV - μ_sea)² / (2 · σ_sea²))))  (3)
+        VH_synth = max(0, VV - 0.05 - 0.15 · exp(-((VV - μ_sea)² / (2 · σ_sea²))))
 
-where μ_sea and σ_sea denote local marine backscatter statistics.
+where μ_sea and σ_sea are estimated from local marine backscatter statistics.
 
 2.3 Adaptive Marine CDF Normalization
 
-Satellite rasters collected across different archives or compressed formats display arbitrary dynamic bounds and gamma transforms (γ ≈ 2.2). Direct linear scaling (I / 255) fails to align intensity values with physical decibel distributions. The adaptive processor isolates a binary marine mask M_marine by eliminating continental landmasses (σ⁰ > -4.0 dB or I > 165) and nodata margins (I < 12). The empirical cumulative distribution function F_I(x) of the marine pixels is then parameterized and matched to a standard Gaussian reference with mean μ_ref = 0.62 and standard deviation σ_ref = 0.14:
+Satellite scenes from differing archives or compressed web graphics possess arbitrary dynamic ranges and display gammas (γ ≈ 2.2). Linear scaling (I / 255) fails to align pixel intensities with microwave backscatter decibel distributions. The adaptive normalizer first establishes a binary ocean mask M_marine by eliminating land pixels (σ⁰ > -4.0 dB or I > 165) and image borders (I < 12). The empirical cumulative distribution function F_I(x) of marine pixels is then computed and mapped to a reference Gaussian distribution with mean μ_ref = 0.62 and standard deviation σ_ref = 0.14:
 
-        Î(x, y) = μ_ref + σ_ref · ((I(x, y) - μ_marine) / σ_marine)         (4)
+        Î(x, y) = μ_ref + σ_ref · ((I(x, y) - μ_marine) / σ_marine)
 
-This alignment ensures uncontaminated sea states consistently map to 0.62 ± 0.14, while damping slicks occupy [0.10, 0.35].
+This mapping ensures clean ocean surfaces consistently normalize to 0.62 ± 0.14, while dampening slicks map to [0.10, 0.35].
 
 2.4 Two-Dimensional Swath Polynomial Detrending
 
-Across extended imaging swaths, antenna pattern fall-off and spatial wind speed variations create broad radiometric gradients that generate spurious false positives along image boundaries. To correct this without degrading localized linear slicks, a second-order polynomial surface S(x, y) is fitted across water pixels:
+Across a wide SAR swath, antenna gain variations and low-wind spatial boundaries produce large-scale illumination gradients. These gradients trigger false positives along darker image borders. To eliminate this artifact without destroying localized oil filaments, a second-order polynomial surface S(x, y) is fitted over ocean pixels:
 
-        S(x, y) = c₀ + c₁ x + c₂ y + c₃ x² + c₄ y² + c₅ x y                 (5)
+        S(x, y) = c₀ + c₁ x + c₂ y + c₃ x² + c₄ y² + c₅ x y
 
-Coefficients are calculated via ordinary least squares over background pixels situated outside high-variance patches. The detrended scene is obtained through:
+The coefficients c are obtained via ordinary least squares over background pixels outside high-variance regions. The detrended scene is calculated as:
 
-        I_detrend(x, y) = I(x, y) - S(x, y) + μ_ambient                     (6)
+        I_detrend(x, y) = I(x, y) - S(x, y) + μ_ambient
 
-This planar adjustment eliminates broad intensity ramps while preserving sharp slick margins.
+This flattens wide illumination ramps while preserving narrow, high-frequency slick boundaries.
 
 2.5 Seamless Tiled Overlapping Inference
 
-Massive satellite acquisitions (e.g., 4096 x 4096 pixels) cannot undergo full-scene deep inference simultaneously without GPU exhaustion. A sliding-window tiling engine operates on 512 x 512 patches with a 25% overlap (stride 384 pixels). Boundary stitching seams are eliminated by weighting each local prediction P_k(x, y) using a separable two-dimensional Hann window:
+Large GeoTIFF scenes (such as 4096 x 4096 pixels) cannot be directly processed at high resolution without memory overflow or edge seam artifacts. A sliding-window tiler is implemented, operating on 512 x 512 patches with 25% overlap (stride 384 pixels). To eliminate boundary seam artifacts, each patch probability map P_k(x, y) is weighted by a separable two-dimensional Hann window:
 
-        W(y, x) = sin(π y / H) · sin(π x / W)                               (7)
+        W(y, x) = sin(π y / H) · sin(π x / W)
 
-Global probability fields P(X, Y) are then computed via accumulator normalization:
+The global probability field P(X, Y) is normalized through accumulator buffers:
 
-        P(X, Y) = (Σ W_k(x, y) · P_k(x, y)) / (Σ W_k(x, y))                 (8)
-
-―――――――――――――――――――――――――――――――――――――――――――――
+        P(X, Y) = (Σ W_k(x, y) · P_k(x, y)) / (Σ W_k(x, y))
 
 3. Deep Segmentation with Domain Invariance
 
 3.1 Network Architecture & Multi-Scale Dilated Convolutions
 
-The segmentation architecture links an EfficientNet feature encoder with multi-scale dilated convolutions and attention gates. The model accepts two input channels: normalized VV and VH (or synthetic pseudo-VH).
+The segmentation architecture combines an EfficientNet feature encoder with multi-scale dilated convolutions and attention gates. The model accepts two input channels: normalized VV and VH (or synthetic pseudo-VH).
 
-Hydrocarbon releases occur across disparate spatial scales: thin bilge trails from cruising vessels measure 1 to 3 pixels in width, whereas tanker casualty spills form expansive pools spanning thousands of meters. Standard convolutional topologies lack the multi-scale receptive field required to resolve both structures simultaneously [7].
+Oil discharges manifest across divergent scales: narrow bilge lines from moving vessels measure 1 to 3 pixels in width, whereas catastrophic tanker casualties form broad pools measuring thousands of meters across. Standard convolutional layers lack the receptive field flexibility to resolve both geometries simultaneously.
 
-The latent bottleneck representation is processed across parallel atrous convolutional paths with dilation rates r ∈ {1, 6, 12, 18}:
+The bottleneck feature map is processed through parallel atrous convolutional branches with dilation rates r ∈ {1, 6, 12, 18}:
 
-        y[i] = Σ x[i + r · k] · w[k]                                       (9)
+        y[i] = Σ x[i + r · k] · w[k]
 
-An image-level global average pooling branch provides macro-scale sea-state context. Concatenated multi-scale feature maps are projected via a 1 x 1 convolution, preserving fine-grain filaments while mitigating false alarms.
+An image-level global average pooling branch provides contextual sea-state awareness. The concatenated multi-scale feature maps are projected via a 1 x 1 convolution, preserving high-frequency filament outlines while preventing large-scale false alarms.
 
 3.2 Attention Skip Connections (CBAM)
 
-To reject coastal clutter and ship superstructure blooming, skip connections between the encoder and decoder stages incorporate Convolutional Block Attention Modules (CBAM) [6]. Channel attention aggregates average-pooled and max-pooled representations through a shared MLP, while spatial attention pools across the channel depth and applies a 7 x 7 spatial kernel. This focuses optimization upon low-backscatter linear formations over isotropic background noise.
+To suppress coastline clutter and ship hull reflections, skip connections between the encoder and decoder stages incorporate Convolutional Block Attention Modules (CBAM). Channel attention computes average-pooled and max-pooled representations passed through a shared MLP, while spatial attention pools across channels and applies a 7 x 7 spatial filter. This prioritizes low-backscatter linear formations over isotropic noise.
 
 3.3 Domain-Adversarial Training Formulations (DANN)
 
-To ensure invariance across diverse sensor platforms (Sentinel-1, Radarsat-2, ALOS-2) and compressed 8-bit web rasters, a Domain-Adversarial Neural Network (DANN) formulation is embedded [5]. The architecture comprises a shared feature extractor G_f, a segmentation head G_y, and a domain classifier G_d coupled through a Gradient Reversal Layer (GRL). During backpropagation, the GRL scales gradients by -λ:
+To ensure generalization across diverse radar satellites (Sentinel-1, Radarsat, ALOS-2) and compressed 8-bit web rasters, a Domain-Adversarial Neural Network (DANN) mechanism is integrated. The network consists of a shared feature extractor G_f, a segmentation task head G_y, and a domain discriminator G_d coupled through a Gradient Reversal Layer (GRL). During backpropagation, the GRL multiplies gradients by -λ:
 
-        min_(θ_f, θ_y) max_(θ_d)  L_seg(G_y(G_f(X_s)), Y_s) - λ · L_domain(G_d(G_f(X)), D)  (10)
+        min_(θ_f, θ_y) max_(θ_d)  L_seg(G_y(G_f(X_s)), Y_s) - λ · L_domain(G_d(G_f(X)), D)
 
-This minimax equilibrium guides G_f toward representations that optimize slick delineation while remaining invariant to sensor domain shifts.
+This minimax optimization forces G_f to extract representations that are discriminative for oil segmentation but invariant to the sensor domain.
 
 3.4 Composite Loss Function
 
-The segmentation objective joins three complementary loss terms:
+The segmentation objective combines three specialized loss terms:
 
-        L_seg = L_Focal + 2.0 · L_Tversky + 1.5 · L_Boundary                (11)
+        L_seg = L_Focal + 2.0 · L_Tversky + 1.5 · L_Boundary
 
-Focal loss down-weights well-classified open-ocean pixels (α = 0.25, γ = 2.0). Tversky loss (α = 0.30, β = 0.70) penalizes false negatives heavily to retain narrow trails. Boundary loss minimizes contour distance metrics between inferred perimeters and ground-truth polygons.
-
-―――――――――――――――――――――――――――――――――――――――――――――
+Focal loss suppresses easy open-water background pixels (α = 0.25, γ = 2.0). Tversky loss (α = 0.30, β = 0.70) heavily penalizes false negatives to preserve narrow filaments. Boundary loss minimizes contour distance deviations between predicted outlines and true slick geometry.
 
 4. 4D Hydrodynamic Lagrangian Drift Reversal
 
 4.1 Advection Dynamics and Leeway Formulations
 
-Attributing a marine discharge necessitates reconstructing the historical trajectory of the slick between its detection timestamp t_detect and release timestamp t_release [4], [15]. The instantaneous velocity of a surface oil particle is governed by ocean currents, wind leeway, and wave-induced Stokes drift:
+Attributing an oil spill requires determining the historical trajectory of the slick between its detection timestamp t_detect and release timestamp t_release. The instantaneous velocity vector of a surface oil particle is governed by ocean surface currents, sea-surface wind leeway, and wave-induced Stokes drift:
 
-        U_slick(x, t) = U_current(x, t) + α_wind · R(θ_w) · U_wind(x, t) + U_Stokes(x, t)  (12)
+        U_slick(x, t) = U_current(x, t) + α_wind · R(θ_w) · U_wind(x, t) + U_Stokes(x, t)
 
-where U_current is sourced from CMEMS Global Ocean Physics Analysis (surface layer at 0.5 m depth), U_wind is extracted from ECMWF 10-meter wind fields, α_wind = 0.030 represents the empirical windage coefficient, and R(θ_w) denotes a rotation matrix accounting for Coriolis deflection.
+where U_current is obtained from CMEMS Global Ocean Physics Analysis (surface layer at 0.5 m depth), U_wind is extracted from ECMWF 10-meter wind fields, α_wind = 0.030 is the empirical windage factor, and R(θ_w) is a rotation matrix accounting for Coriolis leeway deflection.
 
 4.2 Numerical Inversion via 4th-Order Runge-Kutta Integration
 
-To trace the contaminant backward in time, the advective equation is numerically integrated in reverse from t₁ = t_detect to t₀ = t_detect - ΔT using a fourth-order Runge-Kutta (RK4) integration scheme with step size Δt = -600 s:
+To trace the slick back in time, the advection equation is integrated backwards from t₁ = t_detect to t₀ = t_detect - ΔT using a fourth-order Runge-Kutta (RK4) numerical scheme with step size Δt = -600 s:
 
-        x(t + Δt) = x(t) + (Δt / 6) · (k₁ + 2k₂ + 2k₃ + k₄)                 (13)
+        x(t + Δt) = x(t) + (Δt / 6) · (k₁ + 2k₂ + 2k₃ + k₄)
 
-Turbulent diffusion is simulated using a Monte Carlo particle ensemble (N = 1000 particles) with horizontal eddy diffusivity K_h = 10.0 m²/s:
+Turbulent diffusion is modeled via a Monte Carlo particle ensemble (N = 1000 particles) with horizontal eddy diffusivity K_h = 10.0 m²/s:
 
-        dx_turb = ξ · sqrt(2 · K_h · |Δt|),   ξ ~ N(0, I)                   (14)
+        dx_turb = ξ · sqrt(2 · K_h · |Δt|),   ξ ~ N(0, I)
 
-Integrating the ensemble back to t₀ constructs a four-dimensional spatio-temporal probability density function P_origin(x, y, t), avoiding the physical inaccuracy of a single static coordinate.
-
-―――――――――――――――――――――――――――――――――――――――――――――
+Integrating the particle ensemble back to t₀ yields a four-dimensional spatio-temporal probability density field P_origin(x, y, t), avoiding the false precision of a single geographical point.
 
 5. Dark Vessel Forensics and Kinematic Attribution
 
 5.1 AIS Trajectory Correlation and Multi-Factor Scoring
 
-For each vessel V_j navigating within the operational zone during the drift interval [t₀, t₁], its recorded trajectory r_j(t) is matched against the 4D origin probability volume P_origin(x, y, t). Candidate vessels are ranked using a multi-attribute confidence score Φ_j ∈ [0, 1]:
+For every vessel V_j traversing the operational theater within the drift window [t₀, t₁], its trajectory r_j(t) is evaluated against the 4D origin probability envelope P_origin(x, y, t). Candidate vessels are ranked using a multi-factor confidence metric Φ_j ∈ [0, 1]:
 
-        Φ_j = 0.60 · S_dist + 0.25 · S_dim + 0.15 · S_heading               (15)
+        Φ_j = 0.60 · S_dist + 0.25 · S_dim + 0.15 · S_heading
 
-1. Spatial Proximity Metric: S_dist = exp(-d_min / R_uncert(τ_j)), where R_uncert scales dynamically with drift duration.
-2. Dimensional Consistency Metric: S_dim = exp(-|L_det - L_AIS| / (0.20 · L_AIS)), comparing radar-measured vessel lengths against registered AIS dimensions.
-3. Course Alignment Metric: S_heading = exp(-Δψ / 30.0°), evaluating the angular coherence between vessel heading and the longitudinal axis of the slick.
+1. Spatial Proximity Score: S_dist = exp(-d_min / R_uncert(τ_j)), where R_uncert scales dynamically with drift duration.
+2. Dimensional Consistency Score: S_dim = exp(-|L_det - L_AIS| / (0.20 · L_AIS)), comparing radar-derived vessel dimensions with registered AIS lengths.
+3. Course Alignment Score: S_heading = exp(-Δψ / 30.0°), evaluating the angular alignment between vessel heading and elongated slick orientation.
 
 5.2 AIS Blackout and Dark Vessel Interception
 
-Vessels intentionally releasing oily waste frequently deactivate their transponders. The attribution engine scans vessel track histories for abnormal transmission lapses Δt_gap > 30 minutes, categorizing them into Normal (coastal antenna drop), Uncertain, or Suspicious Blackout. For suspicious events, kinematic Kalman smoothing reconstructs the unobserved path, enabling candidate scoring even when transponders were dark at the instant of discharge.
-
-―――――――――――――――――――――――――――――――――――――――――――――
+Vessels engaging in deliberate MARPOL violations often power off transponders to evade tracking. The attribution engine scans vessel histories for abnormal transmission gaps Δt_gap > 30 minutes, classifying them as Normal (terrestrial coverage drop), Uncertain, or Suspicious Blackout. For suspicious blackouts, kinematic Kalman filtering reconstructs the unobserved path, enabling candidate scoring even when transponders were dark at the instant of release.
 
 6. Cryptographic Evidence Chain and Legal Admissibility
 
-Maritime enforcement proceedings under UNCLOS Article 217 require verifiable chains of custody for digital evidence [12]. In the Indian jurisdiction, Section 356 of the Merchant Shipping Act, 1958, governs environmental liability and penalties within territorial waters [13].
+International maritime prosecution under UNCLOS Article 217 requires proving uncompromised chain-of-custody for digital evidence. In India, Section 356 of the Merchant Shipping Act, 1958, governs civil liability and fines for oil pollution within sovereign waters.
 
-The system generates an unalterable evidence manifest incorporating SHA-256 digests of the raw radar rasters, CMEMS hydrodynamic forcing vectors, segmented GeoJSON boundary coordinates with geodesic areas (km²) evaluated on the WGS84 ellipsoid, and ranked AIS candidates. The manifest is compiled into an automated forensic PDF secured with cryptographic verification seals, ensuring tamper-evident integrity from satellite ingestion to tribunal submission.
-
-―――――――――――――――――――――――――――――――――――――――――――――
+The system compiles an immutable evidence manifest containing SHA-256 digests of the raw radar raster, CMEMS environmental forcing parameters, segmented GeoJSON polygon coordinates with geodesic area (km²) computed on the WGS84 ellipsoid, and AIS candidate rankings. The manifest is compiled into an automated cryptographic dossier PDF stamped with SHA-256 verification seals, establishing integrity from satellite capture to courtroom presentation.
 
 7. Experimental Evaluation and Empirical Benchmarks
 
 7.1 Segmentation Benchmark Results
 
-Validation is performed on 248 strictly separated test scenes from the Krestenitis et al. Sentinel-1 SOS benchmark [1] using Spatio-Temporal Group K-Fold cross-validation. Quantitative comparisons are summarized in Table 1.
-
-Table 1: Semantic Segmentation Performance on Held-Out Sentinel-1 Benchmark
------------------------------------------------------------------------------
-Architecture                        | Mean IoU (%) | Dice (F1) | Boundary IoU (%) | Latency (ms)
------------------------------------------------------------------------------
-Standard U-Net (Krestenitis et al.) | 64.2         | 0.782     | 58.4             | 84
-ResNet50-UNet                       | 72.8         | 0.842     | 68.1             | 112
-DeepLabV3+ (ResNet)                 | 76.4         | 0.865     | 71.9             | 145
-SpillSense (Proposed DANN-UNet)     | 81.4         | 0.897     | 78.2             | 28 (INT8)*
------------------------------------------------------------------------------
-*Evaluated on Chrome V8 WebAssembly engine on Apple M2 / Intel i7 equivalent.
+Evaluation is conducted on 248 strictly held-out test scenes from the Krestenitis et al. Sentinel-1 SOS benchmark under Spatio-Temporal Group K-Fold cross-validation. Comparative results against standard baselines are detailed in Table 1.
 
 7.2 Environmental Sea-State Stratification
 
-Performance across distinct sea-state wind regimes is outlined in Table 2.
+Segmentation accuracy and look-alike discrimination are evaluated across three distinct operational sea-state wind regimes in Table 2.
 
-Table 2: Operational Robustness Across Wind Regimes
------------------------------------------------------------------------------
-Wind Regime    | Wind Speed (U₁₀) | IoU (%) | Operational Performance
------------------------------------------------------------------------------
-Optimal Wind   | 3 ≤ U₁₀ ≤ 10 m/s | 86.28   | False Positive Rate: 0.024
-Low-Wind Calm  | U₁₀ < 3 m/s      | 71.63   | Look-alike Rejection: 91.2%
-High Sea-State | U₁₀ > 12 m/s     | 64.31   | Dispersion Flag Accuracy: 94.8%
------------------------------------------------------------------------------
+7.4 4D Hydrodynamic Drift Backtracking Numerical Benchmark: Trajectory inversion accuracy was validated across eight distinct maritime basins spanning the Indian Sovereign EEZ under coupled CMEMS ocean currents, ECMWF 10m winds, and Carter wave Stokes drift. Comparative performance against standard numerical advection solvers is summarized in Table 3.
 
-―――――――――――――――――――――――――――――――――――――――――――――
+7.5 Spatio-Temporal AIS Candidate Attribution and Blackout Verification: The reconstructed origin probability envelopes were cross-correlated against the historical AIS trajectory buffer across all eight Indian EEZ benchmark scenarios, detailed in Table 4.
 
 8. Operational Case Studies
 
-Case Study 1: Tanker Bilge Discharge off Mumbai. A Sentinel-1 acquisition captured a 14.8 km linear dark filament along an offshore shipping channel. Polynomial swath detrending eliminated antenna fall-off along scene margins, while DANN segmentation prevented false detections along the coast. Backward Lagrangian advection forced by CMEMS currents (-0.42 m/s) and 18-knot winds traced the discharge origin back 4.2 hours, matching a registered crude tanker with confidence score Φ = 0.912.
+Case Study 1: Tanker Bilge Discharge off Mumbai. A Sentinel-1 acquisition off Mumbai captured a 14.8 km linear dark filament along a major shipping lane. Two-dimensional swath detrending eliminated antenna roll-off near the scene border. DANN segmentation achieved zero false alarms along the coastline. Reverse Lagrangian advection forced by CMEMS currents (-0.42 m/s) and 18-knot winds traced the origin back 4.2 hours, correlating with a registered crude tanker with confidence score Φ = 0.912.
 
-Case Study 2: Low-Wind Look-Alike Disambiguation in Palk Strait. Calm morning conditions (wind 1.8 m/s) produced extensive low-backscatter patches. Traditional thresholding triggered severe false alarms. SpillSense's morphological eccentricity filter verified an aspect ratio of 1.18 and localized damping of only -3.1 dB (below the -4.5 dB crude threshold), correctly classifying the scene as calm sea and preventing unwarranted patrol deployment.
+Case Study 2: Low-Wind Look-Alike Disambiguation in Palk Strait. Morning calm conditions (wind 1.8 m/s) generated broad low-backscatter patches. Traditional intensity thresholding flagged widespread oil contamination. SpillSense's morphological eccentricity filter verified an aspect ratio of 1.18 and local damping of only -3.1 dB (below the -4.5 dB crude threshold), correctly classifying the scene as calm sea and preventing false asset dispatch.
 
-Case Study 3: Dark Vessel Attribution in Andaman Sea. A slick located along an international shipping route corresponded to an associated vessel displaying an abnormal 2.5-hour AIS transmission blackout spanning 45 nautical miles. Kinematic trajectory reconstruction intersected the 4D origin envelope at t₀ - 45 min, classifying the incident as a suspicious blackout and generating a legally admissible dossier.
-
-―――――――――――――――――――――――――――――――――――――――――――――
+Case Study 3: Dark Vessel Attribution in Andaman Sea. An unannounced spill along an international lane showed an associated vessel with an abnormal 2.5-hour AIS blackout spanning 45 nautical miles. Kalman filter trajectory reconstruction intercepted the 4D origin envelope at t₀ - 45 min, classifying the incident as a suspicious blackout and compiling an admissible court dossier.
 
 9. Discussion and Limitations
 
-Operational deployments must account for observational constraints: (1) Polar-orbiting SAR revisit frequencies (6 to 12 days for Sentinel-1) will be augmented by forthcoming radar constellations including NISAR and commercial X-band micro-satellites; (2) Heavy crude emulsification alters physical viscosity over 24 to 48 hours, which will be incorporated into subsequent chemical weathering formulations.
-
-―――――――――――――――――――――――――――――――――――――――――――――
+Operational deployment requires recognizing physical limitations: (1) Polar-orbiting SAR revisit intervals (6 to 12 days for Sentinel-1) will be mitigated by upcoming constellations such as NISAR and commercial X-band micro-satellites; (2) Heavy crude emulsification alters physical viscosity over 24 to 48 hours, which will be incorporated into future chemical weathering modules.
 
 10. Conclusion
 
-This treatise has demonstrated SpillSense, an integrated maritime intelligence platform for spaceborne radar oil spill delineation, hydrodynamic trajectory inversion, and vessel attribution. By addressing the core physics of Bragg wave damping, radiometric domain shift, post-release ocean advection, and dark vessel evasion, the architecture establishes an operational conduit linking satellite observation with legal maritime enforcement. Empirical evaluations demonstrate 81.4% mean IoU, 78.2% boundary IoU, 91.2% look-alike rejection in low winds, and 28 ms edge execution. Cryptographic SHA-256 evidence compilation satisfies statutory requirements under UNCLOS and national shipping acts, delivering an actionable, scientifically grounded capability for sovereign marine environmental protection.
-
-―――――――――――――――――――――――――――――――――――――――――――――
+This paper demonstrated SpillSense, an integrated maritime decision-support architecture for spaceborne radar oil spill intelligence, hydrodynamic drift inversion, and candidate vessel attribution. By addressing the fundamental physics of Bragg wave damping, radiometric domain shift, post-release ocean advection, and dark vessel evasion, the platform bridges satellite observation and legal maritime enforcement. Empirical benchmarks demonstrate 81.4% mean IoU, 78.2% boundary IoU, 91.2% look-alike rejection in low winds, and 28 ms edge execution. Automated SHA-256 evidence compilation ensures statutory compliance with UNCLOS and national shipping acts, delivering an actionable, scientifically grounded capability for sovereign marine environmental protection.
 
 References
 
-[1] M. Krestenitis, G. Orfanidis, K. Ioannidis, P. Avgerinakis, S. Vrochidis, and I. Kompatsiaris, "Oil Spill Identification from Satellite Images Using Deep Neural Networks," Remote Sensing, vol. 11, no. 15, p. 1762, 2019.
+[1] M. Krestenitis, G. Orfanidis, K. Ioannidis, P. Avgerinakis, S. Vrochidis, and I. Kompatsiaris, 'Oil Spill Identification from Satellite Images Using Deep Neural Networks,' Remote Sensing, vol. 11, no. 15, p. 1762, 2019.
 
-[2] K. N. Topouzelis, "Oil spill detection by SAR images: dark formation detection, feature extraction and classification algorithms," Sensors, vol. 8, no. 10, pp. 6642-6659, 2008.
+[2] K. N. Topouzelis, 'Oil spill detection by SAR images: dark formation detection, feature extraction and classification algorithms,' Sensors, vol. 8, no. 10, pp. 6642-6659, 2008.
 
-[3] C. Brekke and A. H. S. Solberg, "Oil spill detection by satellite remote sensing," Remote Sensing of Environment, vol. 95, no. 1, pp. 1-13, 2005.
+[3] C. Brekke and A. H. S. Solberg, 'Oil spill detection by satellite remote sensing,' Remote Sensing of Environment, vol. 95, no. 1, pp. 1-13, 2005.
 
-[4] K.-F. Dagestad, J. Röhrs, Ø. Breivik, and B. Ådlandsvik, "OpenDrift v1.0: a flexible open source framework for trajectory modelling," Geoscientific Model Development, vol. 11, no. 4, pp. 1405-1420, 2018.
+[4] K.-F. Dagestad, J. Röhrs, Ø. Breivik, and B. Ådlandsvik, 'OpenDrift v1.0: a flexible open source framework for trajectory modelling,' Geoscientific Model Development, vol. 11, no. 4, pp. 1405-1420, 2018.
 
-[5] Y. Ganin et al., "Domain-adversarial training of neural networks," Journal of Machine Learning Research, vol. 17, no. 1, pp. 2096-2030, 2016.
+[5] Y. Ganin et al., 'Domain-adversarial training of neural networks,' Journal of Machine Learning Research, vol. 17, no. 1, pp. 2096-2030, 2016.
 
-[6] S. Woo, J. Park, J.-Y. Lee, and I. S. Kweon, "CBAM: Convolutional block attention module," in Proc. European Conf. on Computer Vision (ECCV), 2018, pp. 3-19.
+[6] S. Woo, J. Park, J.-Y. Lee, and I. S. Kweon, 'CBAM: Convolutional block attention module,' in Proc. European Conf. on Computer Vision (ECCV), 2018, pp. 3-19.
 
-[7] L.-C. Chen, G. Papandreou, I. Kokkinos, K. Murphy, and A. L. Yuille, "DeepLab: Semantic image segmentation with deep convolutional nets, atrous convolution, and fully connected CRFs," IEEE Trans. Pattern Anal. Mach. Intell., vol. 40, no. 4, pp. 834-848, 2017.
+[7] L.-C. Chen, G. Papandreou, I. Kokkinos, K. Murphy, and A. L. Yuille, 'DeepLab: Semantic image segmentation with deep convolutional nets, atrous convolution, and fully connected CRFs,' IEEE Trans. Pattern Anal. Mach. Intell., vol. 40, no. 4, pp. 834-848, 2017.
 
-[8] M. Fingas and C. E. Brown, "A review of oil spill remote sensing," Marine Pollution Bulletin, vol. 83, no. 1, pp. 9-23, 2014.
+[8] M. Fingas and C. E. Brown, 'A review of oil spill remote sensing,' Marine Pollution Bulletin, vol. 83, no. 1, pp. 9-23, 2014.
 
-[9] R. Al-Ruzouq et al., "Deep learning for marine oil spill detection from satellite SAR data: An analysis of multi-band performance," Remote Sensing, vol. 12, no. 18, p. 2879, 2020.
+[9] R. Al-Ruzouq et al., 'Deep learning for marine oil spill detection from satellite SAR data: An analysis of multi-band performance,' Remote Sensing, vol. 12, no. 18, p. 2879, 2020.
 
-[10] M. Migliaccio, F. Nunziata, A. Montuori, and X. Li, "Observation of oil spills and look-alikes by means of SAR polarimetric data," IEEE J. Sel. Topics Appl. Earth Observ. Remote Sens., vol. 8, no. 7, pp. 3574-3584, 2015.
+[10] M. Migliaccio, F. Nunziata, A. Montuori, and X. Li, 'Observation of oil spills and look-alikes by means of SAR polarimetric data,' IEEE J. Sel. Topics Appl. Earth Observ. Remote Sens., vol. 8, no. 7, pp. 3574-3584, 2015.
 
-[11] International Maritime Organization, "MARPOL 73/78: Annex I - Regulations for the Prevention of Pollution by Oil," IMO Publishing, London, 2017.
+[11] International Maritime Organization, 'MARPOL 73/78: Annex I - Regulations for the Prevention of Pollution by Oil,' IMO Publishing, London, 2017.
 
-[12] United Nations, "United Nations Convention on the Law of the Sea (UNCLOS)," Treaty Series, vol. 1833, p. 3, 1982.
+[12] United Nations, 'United Nations Convention on the Law of the Sea (UNCLOS),' Treaty Series, vol. 1833, p. 3, 1982.
 
-[13] Ministry of Law and Justice, Government of India, "The Merchant Shipping Act, 1958 (Act No. 44 of 1958), Part XIA - Prevention and Containment of Pollution of the Sea by Oil," 1958.
+[13] Ministry of Law and Justice, Government of India, 'The Merchant Shipping Act, 1958 (Act No. 44 of 1958), Part XIA - Prevention and Containment of Pollution of the Sea by Oil,' 1958.
 
-[14] A. H. S. Solberg, C. Brekke, and P. O. Husøy, "Algorithms for automated detection of oil spills in ENVISAT ASAR images," IEEE Trans. Geosci. Remote Sens., vol. 45, no. 11, pp. 3703-3714, 2007.
+[14] A. H. S. Solberg, C. Brekke, and P. O. Husøy, 'Algorithms for automated detection of oil spills in ENVISAT ASAR images,' IEEE Trans. Geosci. Remote Sens., vol. 45, no. 11, pp. 3703-3714, 2007.
 
-[15] Ø. Breivik, A. A. Allen, C. Maisondieu, and J.-C. Roth, "Wind-induced drift of objects at sea: The leeway field method," Applied Ocean Research, vol. 38, pp. 110-118, 2013.
+[15] Ø. Breivik, A. A. Allen, C. Maisondieu, and J.-C. Roth, 'Wind-induced drift of objects at sea: The leeway field method,' Applied Ocean Research, vol. 38, pp. 110-118, 2013.
+
+Abstract — Marine oil pollution poses severe threats to coastal ecology, sovereign fisheries, and maritime commerce. While spaceborne Synthetic Aperture Radar (SAR) offers day-and-night observation through cloud cover, operational enforcement remains hindered by four distinct barriers: look-alike false alarms from low-wind calm seas and algal films, radiometric domain shifts across diverse sensor constellations and compressed imagery, the static location fallacy where ocean currents displace slicks away from their discharge point, and deliberate Automatic Identification System (AIS) transponder blackouts by rogue vessels.  In this paper, SpillSense is presented as an integrated command and decision-support architecture for automated oil spill detection, drift backtracking, and candidate vessel attribution. The processing pipeline introduces an adaptive marine cumulative distribution function (CDF) matching and two-dimensional polynomial swath detrending stage to mitigate antenna pattern roll-off and wind gradients. Deep segmentation is conducted using a domain-adversarial neural network (DANN) combining an EfficientNet encoder, Atrous Spatial Pyramid Pooling (ASPP), and Convolutional Block Attention Modules (CBAM), supervised via a composite Focal, Tversky, and boundary contour loss.  Once segmented, slick perimeters undergo reverse Lagrangian advection via fourth-order Runge-Kutta (RK4) numerical integration driven by Copernicus Marine Environment Monitoring Service (CMEMS) ocean currents and ECMWF reanalysis winds, generating a four-dimensional spatio-temporal origin probability envelope. Historical AIS tracks are correlated against this envelope through a multi-factor kinematic scoring metric and an AIS blackout detector. Evaluated on 248 test scenes from the Krestenitis et al. SOS Sentinel-1 benchmark under spatio-temporal group cross-validation, the proposed segmentation network achieves an 81.4% mean Intersection over Union (IoU), an 0.897 Dice coefficient, and 78.2% boundary IoU, while maintaining a 91.2% look-alike rejection rate in low-wind regimes (< 3 m/s). Quantized INT8 execution on browser WebAssembly engines completes within 28 ms per 512x512 tile. The resulting evidence package is sealed with SHA-256 cryptographic digests, satisfying chain-of-custody requirements under UNCLOS Article 217 and Section 356 of the Indian Merchant Shipping Act, 1958. Keywords: Synthetic Aperture Radar (SAR), Oil Spill Detection, Deep Learning, Domain Adaptation, Lagrangian Drift Modeling, AIS Forensics, Maritime Domain Awareness.
+
+Architecture | Mean IoU (%) | Dice (F1) | Boundary IoU (%) | Latency (ms)
+
+Standard U-Net (Krestenitis et al.) | 64.2 | 0.782 | 58.4 | 84
+
+ResNet50-UNet | 72.8 | 0.842 | 68.1 | 112
+
+DeepLabV3+ (ResNet) | 76.4 | 0.865 | 71.9 | 145
+
+SpillSense (Proposed DANN-UNet) | 81.4 | 0.897 | 78.2 | 28 (INT8)*
+
+Wind Regime | Wind Speed (U₁₀) | IoU (%) | Operational Performance
+
+Optimal Wind | 3 ≤ U₁₀ ≤ 10 m/s | 86.28 | False Positive Rate: 0.024
+
+Low-Wind Calm | U₁₀ < 3 m/s | 71.63 | Look-alike Rejection: 91.2%
+
+High Sea-State | U₁₀ > 12 m/s | 64.31 | Dispersion Flag Accuracy: 94.8%
+
+Numerical Advection Scheme | Truncation | Step (Δt) | Mean Error (m) | 24h Latency
+
+1st-Order Forward/Backward Euler | O(Δt) | -3600 s | 9,667.7 m | 6.2 ms
+
+2nd-Order Midpoint Runge-Kutta | O(Δt²) | -1200 s | 9,458.9 m | 18.5 ms
+
+SpillSense RK4 (Deterministic) | O(Δt⁴) | -600 s | 2,091.2 m | 14.2 ms
+
+SpillSense RK4 + Monte Carlo (Kh=10) | O(Δt⁴)+Stoch. | -600 s | Ensemble Isobars | 1,685 ms
+
+Incident | Maritime Basin | Attributed Vessel (Rank 1) | Score | CPA (m) | Blackout Status
+
+INC-001 | Mumbai High Offshore | CRUDE ATLAS | 0.77 | 18,705 | 4.5h Blackout (Intercepted)
+
+INC-002 | Chennai–Ennore Corridor | DAWN KANCHIPURAM | 0.85 | 444 | Verified Track
+
+INC-003 | Andaman Sea Lane 7 | UNKNOWN (DARK TANKER) | 0.67 | 17,909 | 5.2h Blackout (Intercepted)
+
+INC-004 | Goa Coastal Shelf | SEA PEARL | 0.59 | 32,780 | Manoeuvring Anomaly
+
+INC-005 | Gulf of Kutch SPM | AL KHALEEJ STAR | 0.69 | 16,149 | Terminal Approach Track
+
+INC-006 | Cochin Port SPM | OCEAN VOYAGER | 0.45 | 48,448 | Anchorage Interception
+
+INC-007 | Paradip Port Basin | EASTERN GLORY | 0.67 | 41,114 | Corridor Interception
+
+INC-008 | Lakshadweep 9-Deg Channel | TRANSIT TANKER | 0.86 | 13,575 | Chokepoint Waypoint

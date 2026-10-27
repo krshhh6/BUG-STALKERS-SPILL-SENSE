@@ -460,7 +460,7 @@ class AISTrajectoryBuffer:
         Ensures that testing and evaluation queries return authentic, scientifically valid historical tracks.
         """
         with self._get_connection() as conn:
-            cursor = conn.execute("SELECT COUNT(*) FROM ais_trajectory_buffer WHERE mmsi = '419001234'")
+            cursor = conn.execute("SELECT COUNT(*) FROM ais_trajectory_buffer WHERE mmsi = '419004499'")
             count = cursor.fetchone()[0]
             if count > 0:
                 return  # Already seeded
@@ -545,7 +545,109 @@ class AISTrajectoryBuffer:
             }
         ]
 
-        all_tracks = mumbai_high_tracks + ennore_tracks
+        # ── SCENARIO 3: Andaman Sea Shipping Lane 7 (INC-003) ──
+        # Origin ~10.420°N, 93.020°E
+        andaman_tracks = [
+            {
+                "mmsi": "419009111", "name": "UNKNOWN (DARK TANKER)", "imo": "9345671", "flag": "Liberia",
+                "ship_type": "Crude Oil Tanker (VLCC)", "is_tanker": 1,
+                "waypoints": [
+                    {"lat": 10.650, "lon": 92.850, "sog": 14.2, "cog": 118.0, "dt_hr": -4.0},
+                    {"lat": 10.550, "lon": 92.930, "sog": 13.8, "cog": 118.0, "dt_hr": -2.5},
+                    # 5.2h AIS blackout interval passing near origin
+                    {"lat": 10.250, "lon": 93.280, "sog": 14.0, "cog": 116.0, "dt_hr": 2.7},
+                    {"lat": 10.120, "lon": 93.450, "sog": 14.5, "cog": 115.0, "dt_hr": 4.5},
+                ]
+            },
+            {
+                "mmsi": "351234000", "name": "ANDAMAN HIGHWAY", "imo": "9456782", "flag": "Panama",
+                "ship_type": "Container Cargo Vessel", "is_tanker": 0,
+                "waypoints": [
+                    {"lat": 10.700, "lon": 93.100, "sog": 18.0, "cog": 120.0, "dt_hr": -1.0},
+                    {"lat": 10.480, "lon": 93.300, "sog": 18.2, "cog": 120.0, "dt_hr": 1.2},
+                ]
+            }
+        ]
+
+        # ── SCENARIO 4: Goa Coastal Waters Shelf (INC-004) ──
+        # Origin ~15.480°N, 73.610°E
+        goa_tracks = [
+            {
+                "mmsi": "419003322", "name": "SEA PEARL", "imo": "9567893", "flag": "India",
+                "ship_type": "Bunkering / Asphalt Tanker", "is_tanker": 1,
+                "waypoints": [
+                    {"lat": 15.580, "lon": 73.580, "sog": 4.5, "cog": 160.0, "dt_hr": -2.0},
+                    {"lat": 15.480, "lon": 73.610, "sog": 3.2, "cog": 158.0, "dt_hr": 0.0},
+                    {"lat": 15.380, "lon": 73.640, "sog": 5.0, "cog": 162.0, "dt_hr": 2.5},
+                ]
+            }
+        ]
+
+        # ── SCENARIO 5: Gulf of Kutch / Vadinar SPM (INC-005) ──
+        # Origin ~22.610°N, 69.380°E
+        kutch_tracks = [
+            {
+                "mmsi": "419008811", "name": "AL KHALEEJ STAR", "imo": "9678904", "flag": "Saudi Arabia",
+                "ship_type": "Crude Oil Tanker (VLCC)", "is_tanker": 1,
+                "waypoints": [
+                    {"lat": 22.650, "lon": 69.250, "sog": 10.5, "cog": 102.0, "dt_hr": -2.0},
+                    {"lat": 22.610, "lon": 69.380, "sog": 4.2,  "cog": 98.0,  "dt_hr": 0.0},
+                    {"lat": 22.580, "lon": 69.520, "sog": 8.0,  "cog": 95.0,  "dt_hr": 2.0},
+                ]
+            }
+        ]
+
+        # ── SCENARIO 6: Cochin Port SPM Anchorage (INC-006) ──
+        # Origin ~10.020°N, 76.020°E
+        cochin_tracks = [
+            {
+                "mmsi": "419007722", "name": "OCEAN VOYAGER", "imo": "9789015", "flag": "Marshall Islands",
+                "ship_type": "Heavy Bunker Fuel Tanker", "is_tanker": 1,
+                "waypoints": [
+                    {"lat": 10.150, "lon": 75.950, "sog": 12.0, "cog": 150.0, "dt_hr": -2.5},
+                    {"lat": 10.020, "lon": 76.020, "sog": 6.1,  "cog": 152.0, "dt_hr": 0.0},
+                    {"lat": 9.900,  "lon": 76.090, "sog": 11.5, "cog": 148.0, "dt_hr": 2.0},
+                ]
+            }
+        ]
+
+        # ── SCENARIO 7: Paradip Port Offshore Basin (INC-007) ──
+        # Origin ~20.180°N, 86.610°E
+        paradip_tracks = [
+            {
+                "mmsi": "419002288", "name": "EASTERN GLORY", "imo": "9890126", "flag": "India",
+                "ship_type": "Crude Oil Tanker", "is_tanker": 1,
+                "waypoints": [
+                    {"lat": 20.080, "lon": 86.480, "sog": 13.5, "cog": 52.0, "dt_hr": -2.0},
+                    {"lat": 20.250, "lon": 86.720, "sog": 13.0, "cog": 50.0, "dt_hr": 1.5},
+                ]
+            }
+        ]
+
+        # ── SCENARIO 8: Lakshadweep Sea 9-Degree Channel (INC-008) ──
+        # Origin ~8.520°N, 72.880°E
+        lakshadweep_tracks = [
+            {
+                "mmsi": "419004499", "name": "TRANSIT TANKER", "imo": "9901237", "flag": "Panama",
+                "ship_type": "Product Tanker", "is_tanker": 1,
+                "waypoints": [
+                    {"lat": 8.510, "lon": 72.700, "sog": 14.0, "cog": 90.0, "dt_hr": -2.0},
+                    {"lat": 8.520, "lon": 72.880, "sog": 8.5,  "cog": 88.0, "dt_hr": 0.0},
+                    {"lat": 8.530, "lon": 73.100, "sog": 14.2, "cog": 92.0, "dt_hr": 2.5},
+                ]
+            }
+        ]
+
+        all_tracks = (
+            mumbai_high_tracks +
+            ennore_tracks +
+            andaman_tracks +
+            goa_tracks +
+            kutch_tracks +
+            cochin_tracks +
+            paradip_tracks +
+            lakshadweep_tracks
+        )
 
         try:
             with self._get_connection() as conn:

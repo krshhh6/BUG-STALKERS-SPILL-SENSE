@@ -1,0 +1,318 @@
+{
+  "timestamp_utc": "2026-10-27T10:17:21.632221+00:00",
+  "total_scenarios_evaluated": 8,
+  "solvers": {
+    "Euler_1st_Order": {
+      "mean_error_m": 9667.7,
+      "mean_error_km": 9.668,
+      "mean_latency_ms": 0.02
+    },
+    "Midpoint_RK2": {
+      "mean_error_m": 9458.9,
+      "mean_error_km": 9.459,
+      "mean_latency_ms": 0.07
+    },
+    "SpillSense_RK4_Deterministic": {
+      "mean_error_m": 2091.17,
+      "p95_error_m": 5546.38,
+      "mean_latency_ms": 7.02
+    },
+    "SpillSense_RK4_MonteCarlo_Ensemble": {
+      "mean_error_m": 24625.7,
+      "coverage_rate_50_pct": 12.5,
+      "coverage_rate_75_pct": 12.5,
+      "coverage_rate_95_pct": 12.5,
+      "mean_latency_ms": 1685.16,
+      "p95_latency_ms": 3020.21
+    }
+  },
+  "attribution": {
+    "top_1_accuracy_pct": 87.5,
+    "mean_attribution_confidence": 0.7,
+    "mean_cpa_meters": 23640.8,
+    "mean_tca_error_min": 179.4,
+    "dark_vessel_detection_count": 4
+  },
+  "scenario_details": [
+    {
+      "scenario_id": "INC-001",
+      "name": "Mumbai High Offshore Basin",
+      "basin": "Arabian Sea Offshore EEZ",
+      "true_origin": {
+        "lat": 18.663,
+        "lon": 71.158
+      },
+      "spill_detected": {
+        "lat": 18.1255,
+        "lon": 69.9035
+      },
+      "reconstructed_origin_rk4": {
+        "lat": 18.652,
+        "lon": 71.1005
+      },
+      "drift_displacement_km": 145.21,
+      "solver_error_euler_m": 16279.1,
+      "solver_error_rk2_m": 17123.7,
+      "solver_error_rk4_det_m": 6154.92,
+      "solver_error_rk4_mc_m": 6180.0,
+      "contained_in_50_pct_envelope": false,
+      "contained_in_75_pct_envelope": false,
+      "contained_in_95_pct_envelope": false,
+      "rk4_mc_latency_ms": 2438.63,
+      "top_candidate": {
+        "name": "CRUDE ATLAS",
+        "mmsi": "419001234",
+        "attribution_score": 0.77,
+        "cpa_meters": 18705.2,
+        "tca_error_min": 196.8,
+        "dark_vessel_flag": true,
+        "correct_attribution": true
+      }
+    },
+    {
+      "scenario_id": "INC-002",
+      "name": "Chennai\u2013Ennore Coastal Corridor",
+      "basin": "Bay of Bengal Deepwater",
+      "true_origin": {
+        "lat": 13.18,
+        "lon": 80.41
+      },
+      "spill_detected": {
+        "lat": 12.6768,
+        "lon": 80.5892
+      },
+      "reconstructed_origin_rk4": {
+        "lat": 13.2129,
+        "lon": 80.4329
+      },
+      "drift_displacement_km": 59.29,
+      "solver_error_euler_m": 15984.3,
+      "solver_error_rk2_m": 15984.4,
+      "solver_error_rk4_det_m": 4416.21,
+      "solver_error_rk4_mc_m": 4419.2,
+      "contained_in_50_pct_envelope": false,
+      "contained_in_75_pct_envelope": false,
+      "contained_in_95_pct_envelope": false,
+      "rk4_mc_latency_ms": 3204.15,
+      "top_candidate": {
+        "name": "MAPLE GALAXY",
+        "mmsi": "354678000",
+        "attribution_score": 0.9,
+        "cpa_meters": 444.5,
+        "tca_error_min": 16.8,
+        "dark_vessel_flag": true,
+        "correct_attribution": false
+      }
+    },
+    {
+      "scenario_id": "INC-003",
+      "name": "Andaman Sea Shipping Lane 7",
+      "basin": "Andaman Sea Basin",
+      "true_origin": {
+        "lat": 10.42,
+        "lon": 93.02
+      },
+      "spill_detected": {
+        "lat": 10.967,
+        "lon": 93.6694
+      },
+      "reconstructed_origin_rk4": {
+        "lat": 10.4252,
+        "lon": 93.0335
+      },
+      "drift_displacement_km": 93.61,
+      "solver_error_euler_m": 7548.8,
+      "solver_error_rk2_m": 6564.5,
+      "solver_error_rk4_det_m": 1486.97,
+      "solver_error_rk4_mc_m": 1585.6,
+      "contained_in_50_pct_envelope": true,
+      "contained_in_75_pct_envelope": true,
+      "contained_in_95_pct_envelope": true,
+      "rk4_mc_latency_ms": 2678.61,
+      "top_candidate": {
+        "name": "UNKNOWN (DARK TANKER)",
+        "mmsi": "419009111",
+        "attribution_score": 0.67,
+        "cpa_meters": 17908.8,
+        "tca_error_min": 408.6,
+        "dark_vessel_flag": true,
+        "correct_attribution": true
+      }
+    },
+    {
+      "scenario_id": "INC-004",
+      "name": "Goa Coastal Waters Shelf",
+      "basin": "Eastern Arabian Sea Shelf",
+      "true_origin": {
+        "lat": 15.48,
+        "lon": 73.61
+      },
+      "spill_detected": {
+        "lat": 15.1808,
+        "lon": 73.8865
+      },
+      "reconstructed_origin_rk4": {
+        "lat": 15.1909,
+        "lon": 73.8745
+      },
+      "drift_displacement_km": 44.6,
+      "solver_error_euler_m": 4954.7,
+      "solver_error_rk2_m": 5379.9,
+      "solver_error_rk4_det_m": 203.61,
+      "solver_error_rk4_mc_m": 42870.7,
+      "contained_in_50_pct_envelope": false,
+      "contained_in_75_pct_envelope": false,
+      "contained_in_95_pct_envelope": false,
+      "rk4_mc_latency_ms": 183.52,
+      "top_candidate": {
+        "name": "SEA PEARL",
+        "mmsi": "419003322",
+        "attribution_score": 0.59,
+        "cpa_meters": 32780.4,
+        "tca_error_min": 228.6,
+        "dark_vessel_flag": false,
+        "correct_attribution": true
+      }
+    },
+    {
+      "scenario_id": "INC-005",
+      "name": "Gulf of Kutch / Vadinar Deepwater Terminal",
+      "basin": "Northern Arabian Sea / Gulf of Kutch",
+      "true_origin": {
+        "lat": 22.61,
+        "lon": 69.38
+      },
+      "spill_detected": {
+        "lat": 21.6575,
+        "lon": 68.9891
+      },
+      "reconstructed_origin_rk4": {
+        "lat": 22.5109,
+        "lon": 69.2048
+      },
+      "drift_displacement_km": 113.38,
+      "solver_error_euler_m": 6500.2,
+      "solver_error_rk2_m": 6055.0,
+      "solver_error_rk4_det_m": 960.95,
+      "solver_error_rk4_mc_m": 21097.1,
+      "contained_in_50_pct_envelope": false,
+      "contained_in_75_pct_envelope": false,
+      "contained_in_95_pct_envelope": false,
+      "rk4_mc_latency_ms": 2081.28,
+      "top_candidate": {
+        "name": "AL KHALEEJ STAR",
+        "mmsi": "419008811",
+        "attribution_score": 0.69,
+        "cpa_meters": 16149.4,
+        "tca_error_min": 138.6,
+        "dark_vessel_flag": false,
+        "correct_attribution": true
+      }
+    },
+    {
+      "scenario_id": "INC-006",
+      "name": "Cochin Port SPM Anchorage",
+      "basin": "Southwest Indian Coastline",
+      "true_origin": {
+        "lat": 10.02,
+        "lon": 76.02
+      },
+      "spill_detected": {
+        "lat": 10.3624,
+        "lon": 76.3459
+      },
+      "reconstructed_origin_rk4": {
+        "lat": 10.3574,
+        "lon": 76.3394
+      },
+      "drift_displacement_km": 52.24,
+      "solver_error_euler_m": 12151.9,
+      "solver_error_rk2_m": 11804.0,
+      "solver_error_rk4_det_m": 801.27,
+      "solver_error_rk4_mc_m": 51277.9,
+      "contained_in_50_pct_envelope": false,
+      "contained_in_75_pct_envelope": false,
+      "contained_in_95_pct_envelope": false,
+      "rk4_mc_latency_ms": 192.1,
+      "top_candidate": {
+        "name": "OCEAN VOYAGER",
+        "mmsi": "419007722",
+        "attribution_score": 0.45,
+        "cpa_meters": 48448.3,
+        "tca_error_min": 288.6,
+        "dark_vessel_flag": false,
+        "correct_attribution": true
+      }
+    },
+    {
+      "scenario_id": "INC-007",
+      "name": "Paradip Port Offshore Basin",
+      "basin": "Northwestern Bay of Bengal",
+      "true_origin": {
+        "lat": 20.18,
+        "lon": 86.61
+      },
+      "spill_detected": {
+        "lat": 20.0647,
+        "lon": 86.0767
+      },
+      "reconstructed_origin_rk4": {
+        "lat": 20.0708,
+        "lon": 86.0864
+      },
+      "drift_displacement_km": 57.18,
+      "solver_error_euler_m": 7951.3,
+      "solver_error_rk2_m": 7322.0,
+      "solver_error_rk4_det_m": 855.02,
+      "solver_error_rk4_mc_m": 55999.0,
+      "contained_in_50_pct_envelope": false,
+      "contained_in_75_pct_envelope": false,
+      "contained_in_95_pct_envelope": false,
+      "rk4_mc_latency_ms": 182.02,
+      "top_candidate": {
+        "name": "EASTERN GLORY",
+        "mmsi": "419002288",
+        "attribution_score": 0.67,
+        "cpa_meters": 41114.4,
+        "tca_error_min": 138.6,
+        "dark_vessel_flag": false,
+        "correct_attribution": true
+      }
+    },
+    {
+      "scenario_id": "INC-008",
+      "name": "Lakshadweep Sea 9-Degree Channel",
+      "basin": "Equatorial Indian Ocean Passage",
+      "true_origin": {
+        "lat": 8.52,
+        "lon": 72.88
+      },
+      "spill_detected": {
+        "lat": 7.8435,
+        "lon": 73.6847
+      },
+      "reconstructed_origin_rk4": {
+        "lat": 8.4375,
+        "lon": 72.971
+      },
+      "drift_displacement_km": 116.27,
+      "solver_error_euler_m": 5971.2,
+      "solver_error_rk2_m": 5437.6,
+      "solver_error_rk4_det_m": 1850.44,
+      "solver_error_rk4_mc_m": 13576.4,
+      "contained_in_50_pct_envelope": false,
+      "contained_in_75_pct_envelope": false,
+      "contained_in_95_pct_envelope": false,
+      "rk4_mc_latency_ms": 2520.93,
+      "top_candidate": {
+        "name": "TRANSIT TANKER",
+        "mmsi": "419004499",
+        "attribution_score": 0.86,
+        "cpa_meters": 13575.2,
+        "tca_error_min": 18.6,
+        "dark_vessel_flag": true,
+        "correct_attribution": true
+      }
+    }
+  ]
+}

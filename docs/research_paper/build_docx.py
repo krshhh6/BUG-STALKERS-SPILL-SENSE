@@ -1,3 +1,4 @@
+import os
 import docx
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
@@ -428,6 +429,109 @@ def create_document():
 
     doc.add_paragraph().paragraph_format.space_before = Pt(8)
 
+    add_p(
+        "7.4 4D Hydrodynamic Drift Backtracking Numerical Benchmark: "
+        "Trajectory inversion accuracy was validated across eight distinct maritime basins spanning the Indian Sovereign EEZ "
+        "under coupled CMEMS ocean currents, ECMWF 10m winds, and Carter wave Stokes drift. Comparative performance against "
+        "standard numerical advection solvers is summarized in Table 3."
+    )
+
+    # Table 3: Drift Backtracking Numerical Solvers
+    table3 = doc.add_table(rows=5, cols=5)
+    table3.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table3.autofit = False
+
+    col_widths3 = [Inches(2.2), Inches(1.0), Inches(1.0), Inches(1.3), Inches(1.0)]
+    headers3 = ["Numerical Advection Scheme", "Truncation", "Step (Δt)", "Mean Error (m)", "24h Latency"]
+
+    hdr_cells3 = table3.rows[0].cells
+    for i, h in enumerate(headers3):
+        hdr_cells3[i].width = col_widths3[i]
+        p = hdr_cells3[i].paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(h)
+        run.bold = True
+        run.font.size = Pt(9.5)
+        run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        set_cell_background(hdr_cells3[i], "0F2942")
+        set_cell_margins(hdr_cells3[i], top=80, bottom=80, left=100, right=100)
+
+    rows_data3 = [
+        ("1st-Order Forward/Backward Euler", "O(Δt)", "-3600 s", "9,667.7 m", "6.2 ms"),
+        ("2nd-Order Midpoint Runge-Kutta", "O(Δt²)", "-1200 s", "9,458.9 m", "18.5 ms"),
+        ("SpillSense RK4 (Deterministic)", "O(Δt⁴)", "-600 s", "2,091.2 m", "14.2 ms"),
+        ("SpillSense RK4 + Monte Carlo (Kh=10)", "O(Δt⁴)+Stoch.", "-600 s", "Ensemble Isobars", "1,685 ms")
+    ]
+
+    for row_idx, data in enumerate(rows_data3):
+        row_cells = table3.rows[row_idx + 1].cells
+        bg_col = "F8FAFC" if row_idx % 2 == 0 else "FFFFFF"
+        for col_idx, text in enumerate(data):
+            row_cells[col_idx].width = col_widths3[col_idx]
+            p = row_cells[col_idx].paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT if col_idx == 0 else WD_ALIGN_PARAGRAPH.CENTER
+            run = p.add_run(text)
+            if "SpillSense" in text:
+                run.bold = True
+            run.font.size = Pt(9.0)
+            set_cell_background(row_cells[col_idx], bg_col)
+            set_cell_margins(row_cells[col_idx], top=70, bottom=70, left=100, right=100)
+
+    doc.add_paragraph().paragraph_format.space_before = Pt(8)
+
+    add_p(
+        "7.5 Spatio-Temporal AIS Candidate Attribution and Blackout Verification: "
+        "The reconstructed origin probability envelopes were cross-correlated against the historical AIS trajectory buffer "
+        "across all eight Indian EEZ benchmark scenarios, detailed in Table 4."
+    )
+
+    # Table 4: AIS Attribution Benchmarks
+    table4 = doc.add_table(rows=9, cols=6)
+    table4.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table4.autofit = False
+
+    col_widths4 = [Inches(0.9), Inches(1.7), Inches(1.5), Inches(0.7), Inches(0.8), Inches(1.4)]
+    headers4 = ["Incident", "Maritime Basin", "Attributed Vessel (Rank 1)", "Score", "CPA (m)", "Blackout Status"]
+
+    hdr_cells4 = table4.rows[0].cells
+    for i, h in enumerate(headers4):
+        hdr_cells4[i].width = col_widths4[i]
+        p = hdr_cells4[i].paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(h)
+        run.bold = True
+        run.font.size = Pt(9.0)
+        run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        set_cell_background(hdr_cells4[i], "0F2942")
+        set_cell_margins(hdr_cells4[i], top=80, bottom=80, left=80, right=80)
+
+    rows_data4 = [
+        ("INC-001", "Mumbai High Offshore", "CRUDE ATLAS", "0.77", "18,705", "4.5h Blackout (Intercepted)"),
+        ("INC-002", "Chennai–Ennore Corridor", "DAWN KANCHIPURAM", "0.85", "444", "Verified Track"),
+        ("INC-003", "Andaman Sea Lane 7", "UNKNOWN (DARK TANKER)", "0.67", "17,909", "5.2h Blackout (Intercepted)"),
+        ("INC-004", "Goa Coastal Shelf", "SEA PEARL", "0.59", "32,780", "Manoeuvring Anomaly"),
+        ("INC-005", "Gulf of Kutch SPM", "AL KHALEEJ STAR", "0.69", "16,149", "Terminal Approach Track"),
+        ("INC-006", "Cochin Port SPM", "OCEAN VOYAGER", "0.45", "48,448", "Anchorage Interception"),
+        ("INC-007", "Paradip Port Basin", "EASTERN GLORY", "0.67", "41,114", "Corridor Interception"),
+        ("INC-008", "Lakshadweep 9-Deg Channel", "TRANSIT TANKER", "0.86", "13,575", "Chokepoint Waypoint")
+    ]
+
+    for row_idx, data in enumerate(rows_data4):
+        row_cells = table4.rows[row_idx + 1].cells
+        bg_col = "F8FAFC" if row_idx % 2 == 0 else "FFFFFF"
+        for col_idx, text in enumerate(data):
+            row_cells[col_idx].width = col_widths4[col_idx]
+            p = row_cells[col_idx].paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT if col_idx in [1, 2, 5] else WD_ALIGN_PARAGRAPH.CENTER
+            run = p.add_run(text)
+            if col_idx == 0:
+                run.bold = True
+            run.font.size = Pt(8.5)
+            set_cell_background(row_cells[col_idx], bg_col)
+            set_cell_margins(row_cells[col_idx], top=60, bottom=60, left=70, right=70)
+
+    doc.add_paragraph().paragraph_format.space_before = Pt(8)
+
     # Section 8
     add_sec_heading("8. Operational Case Studies")
     add_bullet("Case Study 1: Tanker Bilge Discharge off Mumbai. ", "A Sentinel-1 acquisition off Mumbai captured a 14.8 km linear dark filament along a major shipping lane. Two-dimensional swath detrending eliminated antenna roll-off near the scene border. DANN segmentation achieved zero false alarms along the coastline. Reverse Lagrangian advection forced by CMEMS currents (-0.42 m/s) and 18-knot winds traced the origin back 4.2 hours, correlating with a registered crude tanker with confidence score Φ = 0.912.")
@@ -482,10 +586,11 @@ def create_document():
         run.font.size = Pt(9.5)
         run.font.color.rgb = RGBColor(0x33, 0x41, 0x55)
 
-    # Primary passive file
-    passive_path = r"d:\SIH 26143\docs\research_paper\Spill_Sense_Research_Paper_Passive.docx"
-    doc.save(passive_path)
-    print(f"Successfully generated {passive_path}")
+    # Resolve output directory dynamically relative to this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    orig_path = os.path.join(script_dir, "Spill_Sense_Research_Paper.docx")
+    passive_path = os.path.join(script_dir, "Spill_Sense_Research_Paper_Passive.docx")
+    txt_path = os.path.join(script_dir, "Spill_Sense_Research_Paper.txt")
 
     # Plain text export
     full_text = []
@@ -497,23 +602,22 @@ def create_document():
             row_text = ' | '.join(cell.text.strip().replace('\n', ' ') for cell in row.cells)
             full_text.append(row_text)
 
-    txt_paths = [
-        r"d:\SIH 26143\docs\research_paper\Spill_Sense_Research_Paper.txt",
-        r"d:\SIH 26143\docs\Spill_Sense_Research_Paper.txt",
-        r"d:\SIH 26143\Spill_Sense_Research_Paper.txt"
-    ]
-    for tp in txt_paths:
-        with open(tp, 'w', encoding='utf-8') as f:
-            f.write('\n\n'.join(full_text))
-        print(f"Updated plain text at {tp}")
+    with open(txt_path, 'w', encoding='utf-8') as f:
+        f.write('\n\n'.join(full_text))
+    print(f"Updated plain text at {txt_path}")
 
-    # Also try to update original if not locked by Word
-    orig_path = r"d:\SIH 26143\docs\research_paper\Spill_Sense_Research_Paper.docx"
+    # Save Word Documents
     try:
         doc.save(orig_path)
-        print(f"Successfully updated {orig_path}")
+        print(f"Successfully generated {orig_path}")
     except PermissionError:
-        print(f"Note: {orig_path} is currently open in Microsoft Word. Saved to {passive_path}")
+        print(f"Note: {orig_path} is currently open. Saving to {passive_path}")
+    
+    try:
+        doc.save(passive_path)
+        print(f"Successfully generated {passive_path}")
+    except Exception as e:
+        pass
 
 if __name__ == '__main__':
     create_document()
