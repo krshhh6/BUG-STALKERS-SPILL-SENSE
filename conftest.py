@@ -8,5 +8,8 @@ Windows Tkinter Tcl_AsyncDelete crashes (0x80000003).
 import os
 os.environ["MPLBACKEND"] = "Agg"
 
-import matplotlib
-matplotlib.use("Agg")
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+except ImportError:
+    pass
