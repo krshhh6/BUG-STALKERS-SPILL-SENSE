@@ -285,6 +285,9 @@ class LagrangianDriftService:
             if not np.any(active):
                 break
 
+            prev_lons = cur_lons.copy()
+            prev_lats = cur_lats.copy()
+
             active_lats = cur_lats[active]
             active_lons = cur_lons[active]
 
@@ -346,6 +349,9 @@ class LagrangianDriftService:
             if config.enable_land_stranding and (step % 3 == 0 or step == num_steps):
                 for i in np.where(active)[0]:
                     if self.is_on_land(cur_lons[i], cur_lats[i]):
+                        # Clamp particle to the coastline water interface and mark stranded
+                        cur_lons[i] = prev_lons[i]
+                        cur_lats[i] = prev_lats[i]
                         stranded[i] = True
 
             current_time = step_time

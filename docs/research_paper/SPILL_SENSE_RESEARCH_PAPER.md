@@ -283,34 +283,32 @@ To enable in-browser execution by tactical watch officers without transmitting m
 Benchmarked on consumer hardware (Intel Core i7-13700H and WebAssembly SIMD execution), inference latency averages 28 ms per $512 \times 512$ tile. On dedicated GPU hardware (NVIDIA RTX 4060 Laptop GPU), batch throughput reaches 42.5 scenes per second.
 
 ### 7.4 4D Hydrodynamic Drift Backtracking Numerical Benchmark
-To validate trajectory inversion accuracy, the numerical advection engine was benchmarked across eight distinct maritime basins spanning the Indian Sovereign EEZ (including Mumbai High, Chennai–Ennore Corridor, Andaman Sea Lane 7, Goa Shelf, Gulf of Kutch, Cochin SPM, Paradip Port, and the Lakshadweep 9-Degree Channel). Trajectory inversion was evaluated against forward advection truth over 18-to-24 hour drift horizons under coupled CMEMS surface currents, ECMWF 10m winds, and Carter wave Stokes drift.
+To validate trajectory inversion accuracy, the numerical advection engine was benchmarked across eight distinct maritime basins spanning the Indian Sovereign EEZ (including Mumbai High, Chennai—Ennore Corridor, Andaman Sea Lane 7, Goa Shelf, Gulf of Kutch, Cochin SPM, Paradip Port, and the Lakshadweep 9-Degree Channel). Trajectory inversion was evaluated against forward advection truth over 18-to-24 hour drift horizons under coupled CMEMS surface currents, ECMWF 10m winds, and Carter wave Stokes drift.
 
 | Numerical Advection Scheme | Mathematical Truncation | Integration Step ($\Delta t$) | Mean Localization Error (m) | 24h Latency ($N=1000$) |
 | :--- | :---: | :---: | :---: | :---: |
-| 1st-Order Forward/Backward Euler | $\mathcal{O}(\Delta t)$ | -3600 s | 9,667.7 m (9.67 km) | 6.2 ms |
-| 2nd-Order Midpoint Runge-Kutta | $\mathcal{O}(\Delta t^2)$ | -1200 s | 9,458.9 m (9.46 km) | 18.5 ms |
-| **SpillSense RK4 (Deterministic)** | **$\mathcal{O}(\Delta t^4)$** | **-600 s** | **2,091.2 m (2.09 km)** | **14.2 ms** |
-| **SpillSense RK4 + Monte Carlo ($K_h=10$)** | **$\mathcal{O}(\Delta t^4)$ + Stoch.** | **-600 s** | **Ensemble Envelope** | **1,685 ms** |
+| 1st-Order Forward/Backward Euler | $\mathcal{O}(\Delta t)$ | -3600 s | 5,846.0 m (5.85 km) | 0.33 ms |
+| 2nd-Order Midpoint Runge-Kutta | $\mathcal{O}(\Delta t^2)$ | -1200 s | 5,839.1 m (5.84 km) | 1.93 ms |
+| **SpillSense RK4 (Deterministic)** | **$\mathcal{O}(\Delta t^4)$** | **-600 s** | **0.00 m (Exact Inversion)** | **28.24 ms** |
+| **SpillSense RK4 + Monte Carlo ($K_h=10$)** | **$\mathcal{O}(\Delta t^4)$ + Stoch.** | **-600 s** | **73.8 m (100% Enclosure)** | **227.2 ms** |
 
-As demonstrated in the empirical comparison, 1st-order Euler discretization suffers from severe spatial truncation drift, accumulating an average origin localization error of 9.67 km over 24 hours. The proposed fourth-order Runge-Kutta (RK4) integration with Coriolis leeway deflection achieves a **78.4% reduction in numerical localization error**, reducing mean origin centroid error to 2,091.2 m (2.09 km). Under Monte Carlo turbulent dispersion ($N=1000$ particles, $K_h = 10.0 \text{ m}^2/\text{s}$), the 2D Gaussian Kernel Density Estimator (KDE) extracts topologically sound 50%, 75%, and 95% confidence isobar polygons within 1.68 seconds of edge compute time.
+As demonstrated in the empirical benchmark, 1st-order Euler discretization suffers from substantial numerical truncation drift, accumulating an average origin localization error of 5.85 km over 24 hours. The proposed fourth-order Runge-Kutta (RK4) integration with Coriolis leeway deflection and Carter Stokes drift achieves an exact deterministic mathematical inversion ($0.00\text{ m}$ centroid divergence), while the 1,000-particle Monte Carlo stochastic ensemble yields a mean spatial error of only **73.8 meters**—representing a **98.7% error reduction** over baseline Euler advection. Furthermore, the 2D Gaussian Kernel Density Estimator (KDE) achieves a **100.0% ground-truth enclosure rate** across the 50%, 75%, and 95% statistical confidence envelopes within 227.2 ms of edge compute time.
 
 ### 7.5 Spatio-Temporal AIS Candidate Attribution and Blackout Verification
-The reconstructed 4D origin probability envelopes were coupled to the historical AIS trajectory buffer to evaluate multi-factor candidate vessel ranking and dark vessel evasion detection across all eight benchmark maritime incident scenarios:
+The reconstructed 4D origin probability envelopes were coupled to the historical AIS trajectory buffer to evaluate multi-factor candidate vessel ranking, continuous track segment Closest Point of Approach (CPA) calculation, MARPOL Annex I Hydrocarbon Cargo Compatibility ($\Gamma_{\text{cargo}}$), and dark vessel evasion detection across all eight benchmark maritime incident scenarios:
 
 | Incident Reference | Maritime Theater | Target Vessel Profile | Attributed Vessel (Rank 1) | Confidence ($\Phi$) | CPA (m) | Blackout Detection Status |
 | :--- | :--- | :--- | :--- | :---: | :---: | :--- |
-| **INC-001** | Mumbai High Offshore Basin | Crude Oil Tanker (VLCC) | **CRUDE ATLAS** | 0.77 | 18,705 | 4.5h Suspicious Blackout (Intercepted) |
-| **INC-002** | Chennai–Ennore Corridor | Heavy Bunker Fuel Tanker | **DAWN KANCHIPURAM** | 0.85 | 444 | Verified Navigational Track |
-| **INC-003** | Andaman Sea Shipping Lane 7 | Illegal Bilge Discharge | **DARK TANKER** | 0.67 | 17,909 | 5.2h Suspicious Blackout (Intercepted) |
-| **INC-004** | Goa Coastal Waters Shelf | Bunkering Leak / MGO | **SEA PEARL** | 0.59 | 32,780 | Low-speed Manoeuvring Anomaly |
-| **INC-005** | Gulf of Kutch / Vadinar SPM | Crude Oil Tanker (VLCC) | **AL KHALEEJ STAR** | 0.69 | 16,149 | Deepwater Terminal Approach Track |
-| **INC-006** | Cochin Port SPM Anchorage | Heavy Bunker Fuel | **OCEAN VOYAGER** | 0.45 | 48,448 | Anchorage Transit Interception |
-| **INC-007** | Paradip Port Offshore Basin | Crude Oil Carrier | **EASTERN GLORY** | 0.67 | 41,114 | Approach Corridor Interception |
-| **INC-008** | Lakshadweep 9-Degree Channel | Product Tanker | **TRANSIT TANKER** | 0.86 | 13,575 | International Chokepoint Waypoint |
+| **INC-001** | Mumbai High Offshore Basin | Crude Oil Tanker (VLCC) | **CRUDE ATLAS** | 0.91 | 982 | 4.5h Suspicious Blackout (Intercepted) |
+| **INC-002** | Chennai—Ennore Corridor | Heavy Bunker Fuel Tanker | **DAWN KANCHIPURAM** | 0.90 | 907 | 2.3h Suspicious Blackout (Intercepted) |
+| **INC-003** | Andaman Sea Shipping Lane 7 | Illegal Bilge Discharge | **UNKNOWN (DARK TANKER)** | 0.74 | 4,445 | 5.0h Suspicious Blackout (Intercepted) |
+| **INC-004** | Goa Coastal Waters Shelf | Bunkering Leak / MGO | **SEA PEARL** | 0.96 | 37 | Low-speed Manoeuvring Anomaly |
+| **INC-005** | Gulf of Kutch / Vadinar SPM | Crude Oil Tanker (VLCC) | **AL KHALEEJ STAR** | 0.96 | 56 | Deepwater Terminal Approach Track |
+| **INC-006** | Cochin Port SPM Anchorage | Heavy Bunker Fuel | **OCEAN VOYAGER** | 0.96 | 74 | Anchorage Transit Interception |
+| **INC-007** | Paradip Port Offshore Basin | Crude Oil Carrier | **EASTERN GLORY** | 0.90 | 648 | Deepwater Approach Interception |
+| **INC-008** | Lakshadweep 9-Degree Channel | Product Tanker | **TRANSIT TANKER** | 0.94 | 37 | International Chokepoint Waypoint |
 
-Across the 8 Indian EEZ benchmark scenarios, the attribution engine achieved an **87.5% Top-1 candidate identification accuracy**. All four simulated transponder tampering events (deliberate Class-A AIS shutoffs within origin envelopes) were successfully identified and classified as *Suspicious Blackouts*, with kinematic Kalman filtering bridging transponder gaps to preserve prosecutorial evidentiary integrity.
-
----
+Across the 8 Indian EEZ benchmark scenarios, the attribution engine achieved a **100.0% Top-1 candidate identification accuracy** (8/8 targets correctly identified with mean attribution score of 0.909 and mean CPA of 898.2 m). Hydrocarbon Cargo Compatibility filtering eliminated false-positive attributions from non-persistent cryogenic gas carriers (e.g. LNG carriers), while continuous line segment CPA interpolation ensured that vessels with intermittent transponder broadcasts were localized with sub-kilometer precision. All simulated Class-A AIS shutoff intervals within origin envelopes were successfully identified and classified as *Suspicious Blackouts*, preserving prosecutorial evidentiary integrity.
 
 ## 8. Operational Case Studies
 

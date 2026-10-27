@@ -70,6 +70,8 @@ export interface LiveSimulationResult {
   forecasts: LiveCalculatedTimestep[];
 
   // Reconstructed trajectories and dispersion envelopes
+  suspectVessel?: string;
+  backtrackConfidencePct?: number;
   backtrackPath: [number, number][];
   envelope90: [number, number][];
   envelope75: [number, number][];

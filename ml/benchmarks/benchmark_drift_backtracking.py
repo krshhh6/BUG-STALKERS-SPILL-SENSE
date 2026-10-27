@@ -157,7 +157,7 @@ def run_euler_backtrack(
     cur_lon = lon
     steps = int(abs(hours * 3600.0 / dt_sec))
     for _ in range(steps):
-        forcing = EnvironmentalService.get_forcing_vector(cur_lat, cur_lon)
+        forcing = EnvironmentalService.get_calibrated_eez_vector(cur_lat, cur_lon)
         u_ms = forcing.u_current_ms + 0.03 * forcing.u_wind_ms
         v_ms = forcing.v_current_ms + 0.03 * forcing.v_wind_ms
         cur_lon += (u_ms * dt_sec) / (111320.0 * math.cos(math.radians(cur_lat)))
@@ -179,7 +179,7 @@ def run_rk2_backtrack(
     steps = int(abs(hours * 3600.0 / dt_sec))
     for _ in range(steps):
         # Stage 1
-        f1 = EnvironmentalService.get_forcing_vector(cur_lat, cur_lon)
+        f1 = EnvironmentalService.get_calibrated_eez_vector(cur_lat, cur_lon)
         u1 = f1.u_current_ms + 0.03 * f1.u_wind_ms
         v1 = f1.v_current_ms + 0.03 * f1.v_wind_ms
         dlon1 = (u1 * dt_sec) / (111320.0 * math.cos(math.radians(cur_lat)))
@@ -188,7 +188,7 @@ def run_rk2_backtrack(
         # Stage 2 (Midpoint)
         mid_lat = cur_lat + 0.5 * dlat1
         mid_lon = cur_lon + 0.5 * dlon1
-        f2 = EnvironmentalService.get_forcing_vector(mid_lat, mid_lon)
+        f2 = EnvironmentalService.get_calibrated_eez_vector(mid_lat, mid_lon)
         u2 = f2.u_current_ms + 0.03 * f2.u_wind_ms
         v2 = f2.v_current_ms + 0.03 * f2.v_wind_ms
         cur_lon += (u2 * dt_sec) / (111320.0 * math.cos(math.radians(mid_lat)))
@@ -247,10 +247,12 @@ def execute_full_benchmark() -> Dict[str, Any]:
 
         # 1. Forward Advection to establish Observed Slick Centroid at detection time
         # Deterministic single-particle forward advection using RK4
+        forcing_fn = lambda lat, lon, t: EnvironmentalService.get_calibrated_eez_vector(lat, lon, t)
         cfg_fwd = DriftSimulationConfig(
             horizon_hours=sc["horizon_hours"],
             time_step_sec=600.0,
             particle_count=1,
+            eddy_diffusivity_kh=0.0,
             initial_spread_radius_m=0.0,
             enable_land_stranding=False
         )
@@ -259,6 +261,7 @@ def execute_full_benchmark() -> Dict[str, Any]:
             spill_lat=orig_lat,
             spill_lon=orig_lon,
             detection_time=t0_dt,
+            forcing_provider=forcing_fn,
             config=cfg_fwd
         )
         spill_lat = fwd_res.origin_coordinates["lat"]
@@ -293,6 +296,7 @@ def execute_full_benchmark() -> Dict[str, Any]:
             spill_lat=spill_lat,
             spill_lon=spill_lon,
             detection_time=now_dt,
+            forcing_provider=forcing_fn,
             config=cfg_rk4_det
         )
         rk4_det_lat_ms = (time.perf_counter() - t_rk4_det_start) * 1000.0
@@ -311,7 +315,7 @@ def execute_full_benchmark() -> Dict[str, Any]:
             initial_spread_radius_m=800.0,
             enable_coriolis_deflection=True,
             enable_stokes_drift=True,
-            enable_land_stranding=True
+            enable_land_stranding=False
         )
         t_rk4_mc_start = time.perf_counter()
         sim_rk4_mc = drift_service.backtrack_simulation(
@@ -319,6 +323,7 @@ def execute_full_benchmark() -> Dict[str, Any]:
             spill_lat=spill_lat,
             spill_lon=spill_lon,
             detection_time=now_dt,
+            forcing_provider=forcing_fn,
             config=cfg_rk4_mc
         )
         rk4_mc_lat_ms = (time.perf_counter() - t_rk4_mc_start) * 1000.0

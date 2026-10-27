@@ -160,7 +160,8 @@ class AISTrajectoryBuffer:
                     lon REAL NOT NULL,
                     sog REAL,
                     cog REAL,
-                    recorded_at REAL NOT NULL
+                    recorded_at REAL NOT NULL,
+                    UNIQUE(mmsi, recorded_at)
                 );
             """)
             conn.execute("""
@@ -199,7 +200,7 @@ class AISTrajectoryBuffer:
         try:
             with self._get_connection() as conn:
                 conn.execute("""
-                    INSERT INTO ais_trajectory_buffer 
+                    INSERT OR REPLACE INTO ais_trajectory_buffer 
                     (mmsi, name, imo, flag, ship_type, is_tanker, lat, lon, sog, cog, recorded_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
@@ -314,7 +315,7 @@ class AISTrajectoryBuffer:
             if not pings:
                 continue
 
-            # Compute Closest Point of Approach (CPA) to the origin coordinate
+            # Compute Closest Point of Approach (CPA) to the origin coordinate across pings AND track segments
             min_cpa_nm = 999.0
             closest_ping = pings[0]
             for p in pings:
@@ -322,6 +323,28 @@ class AISTrajectoryBuffer:
                 if d < min_cpa_nm:
                     min_cpa_nm = d
                     closest_ping = p
+
+            # Continuous navigation track CPA interpolation & Dark Vessel (AIS Silence Gap) Detection
+            max_gap_hours = 0.0
+            dark_vessel_suspect = False
+            for i in range(len(pings) - 1):
+                gap_sec = pings[i + 1]["timestamp"] - pings[i]["timestamp"]
+                gap_hrs = gap_sec / 3600.0
+                if gap_hrs > max_gap_hours:
+                    max_gap_hours = gap_hrs
+
+                # Continuous perpendicular distance to the trajectory segment
+                seg_dist = self._point_to_line_dist_nm(
+                    origin_lat, origin_lon,
+                    pings[i]["lat"], pings[i]["lon"],
+                    pings[i + 1]["lat"], pings[i + 1]["lon"]
+                )
+                if seg_dist < min_cpa_nm:
+                    min_cpa_nm = seg_dist
+
+                # Flag dark vessel gap if transponder off >= 1.5h and track crosses origin cell
+                if gap_hrs >= 1.5 and seg_dist <= 8.0:
+                    dark_vessel_suspect = True
 
             # Discard if vessel never entered within candidate radius (e.g., 45 nm)
             if min_cpa_nm > (radius_nm * 1.3):
@@ -331,24 +354,6 @@ class AISTrajectoryBuffer:
             estimated_discharge_time = (start_time + end_time) / 2.0
             time_delta_sec = abs(closest_ping["timestamp"] - estimated_discharge_time)
             time_delta_hours = time_delta_sec / 3600.0
-
-            # Dark Vessel (AIS Silence Gap) Detection
-            max_gap_hours = 0.0
-            dark_vessel_suspect = False
-            for i in range(len(pings) - 1):
-                gap_sec = pings[i + 1]["timestamp"] - pings[i]["timestamp"]
-                gap_hrs = gap_sec / 3600.0
-                if gap_hrs >= 2.0:
-                    if gap_hrs > max_gap_hours:
-                        max_gap_hours = gap_hrs
-                    # Check if the straight-line segment between gap endpoints passes near the origin
-                    interp_dist = self._point_to_line_dist_nm(
-                        origin_lat, origin_lon,
-                        pings[i]["lat"], pings[i]["lon"],
-                        pings[i + 1]["lat"], pings[i + 1]["lon"]
-                    )
-                    if interp_dist <= 8.0:
-                        dark_vessel_suspect = True
 
             meta = meta_map[mmsi]
             v_type_lower = meta["type"].lower()
@@ -366,15 +371,23 @@ class AISTrajectoryBuffer:
             if dark_vessel_suspect:
                 s_gap = max(s_gap, 0.85)
 
-            # 4. Vessel Risk Prior
-            if "crude" in v_type_lower or "vlcc" in v_type_lower:
-                s_type = 0.95
-            elif "product" in v_type_lower or "bunker" in v_type_lower or "aframax" in v_type_lower:
+            # 4. MARPOL Annex I Hydrocarbon Cargo Compatibility Prior
+            if any(k in v_type_lower for k in ["lng", "lpg", "gas carrier", "methane", "cryogenic"]):
+                s_type = 0.05  # Cryogenic flash evaporation at -162°C; cannot produce persistent liquid slick
+            elif any(k in v_type_lower for k in ["crude", "vlcc", "suezmax", "aframax"]):
+                s_type = 0.98  # Primary heavy crude cargo
+            elif any(k in v_type_lower for k in ["bunker", "asphalt", "bitumen"]):
+                s_type = 0.95  # Persistent heavy fuel oil
+            elif any(k in v_type_lower for k in ["product", "oil tanker"]):
+                s_type = 0.90  # Refined petroleum
+            elif any(k in v_type_lower for k in ["chemical"]):
+                s_type = 0.65  # NLS / Chemical tanker
+            elif any(k in v_type_lower for k in ["container", "cargo", "freighter"]):
+                s_type = 0.35  # Bilge / sludge discharge only
+            elif any(k in v_type_lower for k in ["bulk", "ore"]):
+                s_type = 0.30  # Heavy fuel oil washings
+            elif is_tanker:
                 s_type = 0.85
-            elif "chemical" in v_type_lower or is_tanker:
-                s_type = 0.75
-            elif "cargo" in v_type_lower or "container" in v_type_lower or "bulk" in v_type_lower:
-                s_type = 0.35
             else:
                 s_type = 0.20
 
@@ -536,7 +549,7 @@ class AISTrajectoryBuffer:
             },
             {
                 "mmsi": "354678000", "name": "MAPLE GALAXY", "imo": "9234562", "flag": "Panama",
-                "ship_type": "Gas / LNG / LPG Carrier", "is_tanker": 1,
+                "ship_type": "Gas / LNG / LPG Carrier", "is_tanker": 0,
                 "waypoints": [
                     {"lat": 13.100, "lon": 80.390, "sog": 11.2, "cog": 15.0, "dt_hr": -2.0},
                     {"lat": 13.210, "lon": 80.430, "sog": 10.8, "cog": 14.0, "dt_hr": 0.5},
@@ -561,7 +574,7 @@ class AISTrajectoryBuffer:
             },
             {
                 "mmsi": "351234000", "name": "ANDAMAN HIGHWAY", "imo": "9456782", "flag": "Panama",
-                "ship_type": "Container Cargo Vessel", "is_tanker": 0,
+                "ship_type": "Container Cargo Vessel", "is_tanker": 0, "horizon_hours": 20.0,
                 "waypoints": [
                     {"lat": 10.700, "lon": 93.100, "sog": 18.0, "cog": 120.0, "dt_hr": -1.0},
                     {"lat": 10.480, "lon": 93.300, "sog": 18.2, "cog": 120.0, "dt_hr": 1.2},
@@ -574,7 +587,7 @@ class AISTrajectoryBuffer:
         goa_tracks = [
             {
                 "mmsi": "419003322", "name": "SEA PEARL", "imo": "9567893", "flag": "India",
-                "ship_type": "Bunkering / Asphalt Tanker", "is_tanker": 1,
+                "ship_type": "Bunkering / Asphalt Tanker", "is_tanker": 1, "horizon_hours": 18.0,
                 "waypoints": [
                     {"lat": 15.580, "lon": 73.580, "sog": 4.5, "cog": 160.0, "dt_hr": -2.0},
                     {"lat": 15.480, "lon": 73.610, "sog": 3.2, "cog": 158.0, "dt_hr": 0.0},
@@ -602,7 +615,7 @@ class AISTrajectoryBuffer:
         cochin_tracks = [
             {
                 "mmsi": "419007722", "name": "OCEAN VOYAGER", "imo": "9789015", "flag": "Marshall Islands",
-                "ship_type": "Heavy Bunker Fuel Tanker", "is_tanker": 1,
+                "ship_type": "Heavy Bunker Fuel Tanker", "is_tanker": 1, "horizon_hours": 22.0,
                 "waypoints": [
                     {"lat": 10.150, "lon": 75.950, "sog": 12.0, "cog": 150.0, "dt_hr": -2.5},
                     {"lat": 10.020, "lon": 76.020, "sog": 6.1,  "cog": 152.0, "dt_hr": 0.0},
@@ -652,10 +665,12 @@ class AISTrajectoryBuffer:
         try:
             with self._get_connection() as conn:
                 for ship in all_tracks:
+                    h_ship = ship.get("horizon_hours", 24.0)
+                    t_discharge_ship = now_ts - (h_ship * 3600.0)
                     for wp in ship["waypoints"]:
-                        t_ping = t_discharge + (wp["dt_hr"] * 3600.0)
+                        t_ping = t_discharge_ship + (wp["dt_hr"] * 3600.0)
                         conn.execute("""
-                            INSERT INTO ais_trajectory_buffer 
+                            INSERT OR REPLACE INTO ais_trajectory_buffer 
                             (mmsi, name, imo, flag, ship_type, is_tanker, lat, lon, sog, cog, recorded_at)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (

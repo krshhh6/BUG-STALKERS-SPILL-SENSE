@@ -103,16 +103,20 @@ class AttributionEngine:
                     diff = 360 - diff
                 heading_score = math.exp(- (diff / 30.0))
                 
-            # 5. Vessel Risk Prior
+            # 5. MARPOL Annex I Hydrocarbon Cargo Compatibility & Vessel Risk Prior
             v_type_lower = (ais.vessel_type or "").lower()
-            if any(k in v_type_lower for k in ["crude", "vlcc", "oil", "tanker"]):
+            if any(k in v_type_lower for k in ["lng", "lpg", "gas carrier", "methane", "cryogenic"]):
+                type_prior = 0.05  # Cryogenic cargo evaporates instantaneously; cannot form persistent surface slick
+            elif any(k in v_type_lower for k in ["crude", "vlcc", "suezmax", "aframax", "oil tanker"]):
                 type_prior = 1.0
-            elif any(k in v_type_lower for k in ["bunker", "chemical", "gas"]):
-                type_prior = 0.90
+            elif any(k in v_type_lower for k in ["bunker", "asphalt", "bitumen"]):
+                type_prior = 0.95
+            elif any(k in v_type_lower for k in ["chemical", "tanker"]):
+                type_prior = 0.85
             elif any(k in v_type_lower for k in ["cargo", "container", "bulk"]):
-                type_prior = 0.50
+                type_prior = 0.45
             else:
-                type_prior = 0.30
+                type_prior = 0.25
 
             # Weighted Overall Confidence
             overall = (spatial_score * 0.55) + (dimension_score * 0.20) + (heading_score * 0.15) + (type_prior * 0.10)

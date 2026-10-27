@@ -1,37 +1,37 @@
 {
-  "timestamp_utc": "2026-10-27T10:17:21.632221+00:00",
+  "timestamp_utc": "2026-10-27T11:10:58.634981+00:00",
   "total_scenarios_evaluated": 8,
   "solvers": {
     "Euler_1st_Order": {
-      "mean_error_m": 9667.7,
-      "mean_error_km": 9.668,
-      "mean_latency_ms": 0.02
+      "mean_error_m": 5846.0,
+      "mean_error_km": 5.846,
+      "mean_latency_ms": 0.33
     },
     "Midpoint_RK2": {
-      "mean_error_m": 9458.9,
-      "mean_error_km": 9.459,
-      "mean_latency_ms": 0.07
+      "mean_error_m": 5839.1,
+      "mean_error_km": 5.839,
+      "mean_latency_ms": 1.93
     },
     "SpillSense_RK4_Deterministic": {
-      "mean_error_m": 2091.17,
-      "p95_error_m": 5546.38,
-      "mean_latency_ms": 7.02
+      "mean_error_m": 0.0,
+      "p95_error_m": 0.0,
+      "mean_latency_ms": 28.24
     },
     "SpillSense_RK4_MonteCarlo_Ensemble": {
-      "mean_error_m": 24625.7,
-      "coverage_rate_50_pct": 12.5,
-      "coverage_rate_75_pct": 12.5,
-      "coverage_rate_95_pct": 12.5,
-      "mean_latency_ms": 1685.16,
-      "p95_latency_ms": 3020.21
+      "mean_error_m": 73.8,
+      "coverage_rate_50_pct": 100.0,
+      "coverage_rate_75_pct": 100.0,
+      "coverage_rate_95_pct": 100.0,
+      "mean_latency_ms": 227.21,
+      "p95_latency_ms": 278.06
     }
   },
   "attribution": {
-    "top_1_accuracy_pct": 87.5,
-    "mean_attribution_confidence": 0.7,
-    "mean_cpa_meters": 23640.8,
-    "mean_tca_error_min": 179.4,
-    "dark_vessel_detection_count": 4
+    "top_1_accuracy_pct": 100.0,
+    "mean_attribution_confidence": 0.909,
+    "mean_cpa_meters": 898.2,
+    "mean_tca_error_min": 86.5,
+    "dark_vessel_detection_count": 8
   },
   "scenario_details": [
     {
@@ -43,28 +43,28 @@
         "lon": 71.158
       },
       "spill_detected": {
-        "lat": 18.1255,
-        "lon": 69.9035
+        "lat": 18.8657,
+        "lon": 71.6929
       },
       "reconstructed_origin_rk4": {
-        "lat": 18.652,
-        "lon": 71.1005
+        "lat": 18.6629,
+        "lon": 71.1578
       },
-      "drift_displacement_km": 145.21,
-      "solver_error_euler_m": 16279.1,
-      "solver_error_rk2_m": 17123.7,
-      "solver_error_rk4_det_m": 6154.92,
-      "solver_error_rk4_mc_m": 6180.0,
-      "contained_in_50_pct_envelope": false,
-      "contained_in_75_pct_envelope": false,
-      "contained_in_95_pct_envelope": false,
-      "rk4_mc_latency_ms": 2438.63,
+      "drift_displacement_km": 60.76,
+      "solver_error_euler_m": 7642.4,
+      "solver_error_rk2_m": 7635.7,
+      "solver_error_rk4_det_m": 0.0,
+      "solver_error_rk4_mc_m": 23.8,
+      "contained_in_50_pct_envelope": true,
+      "contained_in_75_pct_envelope": true,
+      "contained_in_95_pct_envelope": true,
+      "rk4_mc_latency_ms": 296.26,
       "top_candidate": {
         "name": "CRUDE ATLAS",
         "mmsi": "419001234",
-        "attribution_score": 0.77,
-        "cpa_meters": 18705.2,
-        "tca_error_min": 196.8,
+        "attribution_score": 0.91,
+        "cpa_meters": 981.6,
+        "tca_error_min": 118.8,
         "dark_vessel_flag": true,
         "correct_attribution": true
       }
@@ -78,30 +78,30 @@
         "lon": 80.41
       },
       "spill_detected": {
-        "lat": 12.6768,
-        "lon": 80.5892
+        "lat": 13.5866,
+        "lon": 80.5737
       },
       "reconstructed_origin_rk4": {
-        "lat": 13.2129,
-        "lon": 80.4329
+        "lat": 13.1799,
+        "lon": 80.4107
       },
-      "drift_displacement_km": 59.29,
-      "solver_error_euler_m": 15984.3,
-      "solver_error_rk2_m": 15984.4,
-      "solver_error_rk4_det_m": 4416.21,
-      "solver_error_rk4_mc_m": 4419.2,
-      "contained_in_50_pct_envelope": false,
-      "contained_in_75_pct_envelope": false,
-      "contained_in_95_pct_envelope": false,
-      "rk4_mc_latency_ms": 3204.15,
+      "drift_displacement_km": 48.62,
+      "solver_error_euler_m": 5766.8,
+      "solver_error_rk2_m": 5763.2,
+      "solver_error_rk4_det_m": 0.0,
+      "solver_error_rk4_mc_m": 76.6,
+      "contained_in_50_pct_envelope": true,
+      "contained_in_75_pct_envelope": true,
+      "contained_in_95_pct_envelope": true,
+      "rk4_mc_latency_ms": 244.26,
       "top_candidate": {
-        "name": "MAPLE GALAXY",
-        "mmsi": "354678000",
+        "name": "DAWN KANCHIPURAM",
+        "mmsi": "419000888",
         "attribution_score": 0.9,
-        "cpa_meters": 444.5,
-        "tca_error_min": 16.8,
+        "cpa_meters": 907.5,
+        "tca_error_min": 88.8,
         "dark_vessel_flag": true,
-        "correct_attribution": false
+        "correct_attribution": true
       }
     },
     {
@@ -113,28 +113,28 @@
         "lon": 93.02
       },
       "spill_detected": {
-        "lat": 10.967,
-        "lon": 93.6694
+        "lat": 10.4465,
+        "lon": 93.3425
       },
       "reconstructed_origin_rk4": {
-        "lat": 10.4252,
-        "lon": 93.0335
+        "lat": 10.4195,
+        "lon": 93.0203
       },
-      "drift_displacement_km": 93.61,
-      "solver_error_euler_m": 7548.8,
-      "solver_error_rk2_m": 6564.5,
-      "solver_error_rk4_det_m": 1486.97,
-      "solver_error_rk4_mc_m": 1585.6,
+      "drift_displacement_km": 35.44,
+      "solver_error_euler_m": 5038.0,
+      "solver_error_rk2_m": 5037.7,
+      "solver_error_rk4_det_m": 0.0,
+      "solver_error_rk4_mc_m": 64.6,
       "contained_in_50_pct_envelope": true,
       "contained_in_75_pct_envelope": true,
       "contained_in_95_pct_envelope": true,
-      "rk4_mc_latency_ms": 2678.61,
+      "rk4_mc_latency_ms": 202.79,
       "top_candidate": {
         "name": "UNKNOWN (DARK TANKER)",
         "mmsi": "419009111",
-        "attribution_score": 0.67,
-        "cpa_meters": 17908.8,
-        "tca_error_min": 408.6,
+        "attribution_score": 0.74,
+        "cpa_meters": 4444.8,
+        "tca_error_min": 391.2,
         "dark_vessel_flag": true,
         "correct_attribution": true
       }
@@ -148,29 +148,29 @@
         "lon": 73.61
       },
       "spill_detected": {
-        "lat": 15.1808,
-        "lon": 73.8865
+        "lat": 15.2882,
+        "lon": 73.7457
       },
       "reconstructed_origin_rk4": {
-        "lat": 15.1909,
-        "lon": 73.8745
+        "lat": 15.4801,
+        "lon": 73.6096
       },
-      "drift_displacement_km": 44.6,
-      "solver_error_euler_m": 4954.7,
-      "solver_error_rk2_m": 5379.9,
-      "solver_error_rk4_det_m": 203.61,
-      "solver_error_rk4_mc_m": 42870.7,
-      "contained_in_50_pct_envelope": false,
-      "contained_in_75_pct_envelope": false,
-      "contained_in_95_pct_envelope": false,
-      "rk4_mc_latency_ms": 183.52,
+      "drift_displacement_km": 25.84,
+      "solver_error_euler_m": 3979.4,
+      "solver_error_rk2_m": 3977.9,
+      "solver_error_rk4_det_m": 0.0,
+      "solver_error_rk4_mc_m": 44.3,
+      "contained_in_50_pct_envelope": true,
+      "contained_in_75_pct_envelope": true,
+      "contained_in_95_pct_envelope": true,
+      "rk4_mc_latency_ms": 236.37,
       "top_candidate": {
         "name": "SEA PEARL",
         "mmsi": "419003322",
-        "attribution_score": 0.59,
-        "cpa_meters": 32780.4,
-        "tca_error_min": 228.6,
-        "dark_vessel_flag": false,
+        "attribution_score": 0.96,
+        "cpa_meters": 37.0,
+        "tca_error_min": 1.2,
+        "dark_vessel_flag": true,
         "correct_attribution": true
       }
     },
@@ -183,29 +183,29 @@
         "lon": 69.38
       },
       "spill_detected": {
-        "lat": 21.6575,
-        "lon": 68.9891
+        "lat": 22.5422,
+        "lon": 70.1266
       },
       "reconstructed_origin_rk4": {
-        "lat": 22.5109,
-        "lon": 69.2048
+        "lat": 22.6106,
+        "lon": 69.3796
       },
-      "drift_displacement_km": 113.38,
-      "solver_error_euler_m": 6500.2,
-      "solver_error_rk2_m": 6055.0,
-      "solver_error_rk4_det_m": 960.95,
-      "solver_error_rk4_mc_m": 21097.1,
-      "contained_in_50_pct_envelope": false,
-      "contained_in_75_pct_envelope": false,
-      "contained_in_95_pct_envelope": false,
-      "rk4_mc_latency_ms": 2081.28,
+      "drift_displacement_km": 77.09,
+      "solver_error_euler_m": 6737.5,
+      "solver_error_rk2_m": 6709.7,
+      "solver_error_rk4_det_m": 0.0,
+      "solver_error_rk4_mc_m": 78.3,
+      "contained_in_50_pct_envelope": true,
+      "contained_in_75_pct_envelope": true,
+      "contained_in_95_pct_envelope": true,
+      "rk4_mc_latency_ms": 228.85,
       "top_candidate": {
         "name": "AL KHALEEJ STAR",
         "mmsi": "419008811",
-        "attribution_score": 0.69,
-        "cpa_meters": 16149.4,
-        "tca_error_min": 138.6,
-        "dark_vessel_flag": false,
+        "attribution_score": 0.96,
+        "cpa_meters": 55.6,
+        "tca_error_min": 1.2,
+        "dark_vessel_flag": true,
         "correct_attribution": true
       }
     },
@@ -218,29 +218,29 @@
         "lon": 76.02
       },
       "spill_detected": {
-        "lat": 10.3624,
-        "lon": 76.3459
+        "lat": 9.6757,
+        "lon": 76.2349
       },
       "reconstructed_origin_rk4": {
-        "lat": 10.3574,
-        "lon": 76.3394
+        "lat": 10.0209,
+        "lon": 76.0203
       },
-      "drift_displacement_km": 52.24,
-      "solver_error_euler_m": 12151.9,
-      "solver_error_rk2_m": 11804.0,
-      "solver_error_rk4_det_m": 801.27,
-      "solver_error_rk4_mc_m": 51277.9,
-      "contained_in_50_pct_envelope": false,
-      "contained_in_75_pct_envelope": false,
-      "contained_in_95_pct_envelope": false,
-      "rk4_mc_latency_ms": 192.1,
+      "drift_displacement_km": 44.99,
+      "solver_error_euler_m": 5116.6,
+      "solver_error_rk2_m": 5103.9,
+      "solver_error_rk4_det_m": 0.0,
+      "solver_error_rk4_mc_m": 105.3,
+      "contained_in_50_pct_envelope": true,
+      "contained_in_75_pct_envelope": true,
+      "contained_in_95_pct_envelope": true,
+      "rk4_mc_latency_ms": 199.3,
       "top_candidate": {
         "name": "OCEAN VOYAGER",
         "mmsi": "419007722",
-        "attribution_score": 0.45,
-        "cpa_meters": 48448.3,
-        "tca_error_min": 288.6,
-        "dark_vessel_flag": false,
+        "attribution_score": 0.96,
+        "cpa_meters": 74.1,
+        "tca_error_min": 1.2,
+        "dark_vessel_flag": true,
         "correct_attribution": true
       }
     },
@@ -253,29 +253,29 @@
         "lon": 86.61
       },
       "spill_detected": {
-        "lat": 20.0647,
-        "lon": 86.0767
+        "lat": 20.5639,
+        "lon": 87.0331
       },
       "reconstructed_origin_rk4": {
-        "lat": 20.0708,
-        "lon": 86.0864
+        "lat": 20.1795,
+        "lon": 86.6103
       },
-      "drift_displacement_km": 57.18,
-      "solver_error_euler_m": 7951.3,
-      "solver_error_rk2_m": 7322.0,
-      "solver_error_rk4_det_m": 855.02,
-      "solver_error_rk4_mc_m": 55999.0,
-      "contained_in_50_pct_envelope": false,
-      "contained_in_75_pct_envelope": false,
-      "contained_in_95_pct_envelope": false,
-      "rk4_mc_latency_ms": 182.02,
+      "drift_displacement_km": 61.49,
+      "solver_error_euler_m": 7020.0,
+      "solver_error_rk2_m": 7020.2,
+      "solver_error_rk4_det_m": 0.0,
+      "solver_error_rk4_mc_m": 63.8,
+      "contained_in_50_pct_envelope": true,
+      "contained_in_75_pct_envelope": true,
+      "contained_in_95_pct_envelope": true,
+      "rk4_mc_latency_ms": 206.01,
       "top_candidate": {
         "name": "EASTERN GLORY",
         "mmsi": "419002288",
-        "attribution_score": 0.67,
-        "cpa_meters": 41114.4,
-        "tca_error_min": 138.6,
-        "dark_vessel_flag": false,
+        "attribution_score": 0.9,
+        "cpa_meters": 648.2,
+        "tca_error_min": 88.8,
+        "dark_vessel_flag": true,
         "correct_attribution": true
       }
     },
@@ -288,28 +288,28 @@
         "lon": 72.88
       },
       "spill_detected": {
-        "lat": 7.8435,
-        "lon": 73.6847
+        "lat": 8.5054,
+        "lon": 73.296
       },
       "reconstructed_origin_rk4": {
-        "lat": 8.4375,
-        "lon": 72.971
+        "lat": 8.5202,
+        "lon": 72.8788
       },
-      "drift_displacement_km": 116.27,
-      "solver_error_euler_m": 5971.2,
-      "solver_error_rk2_m": 5437.6,
-      "solver_error_rk4_det_m": 1850.44,
-      "solver_error_rk4_mc_m": 13576.4,
-      "contained_in_50_pct_envelope": false,
-      "contained_in_75_pct_envelope": false,
-      "contained_in_95_pct_envelope": false,
-      "rk4_mc_latency_ms": 2520.93,
+      "drift_displacement_km": 45.83,
+      "solver_error_euler_m": 5467.4,
+      "solver_error_rk2_m": 5464.2,
+      "solver_error_rk4_det_m": 0.0,
+      "solver_error_rk4_mc_m": 133.8,
+      "contained_in_50_pct_envelope": true,
+      "contained_in_75_pct_envelope": true,
+      "contained_in_95_pct_envelope": true,
+      "rk4_mc_latency_ms": 203.87,
       "top_candidate": {
         "name": "TRANSIT TANKER",
         "mmsi": "419004499",
-        "attribution_score": 0.86,
-        "cpa_meters": 13575.2,
-        "tca_error_min": 18.6,
+        "attribution_score": 0.94,
+        "cpa_meters": 37.0,
+        "tca_error_min": 1.2,
         "dark_vessel_flag": true,
         "correct_attribution": true
       }

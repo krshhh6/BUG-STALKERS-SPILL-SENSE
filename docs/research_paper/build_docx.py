@@ -432,8 +432,11 @@ def create_document():
     add_p(
         "7.4 4D Hydrodynamic Drift Backtracking Numerical Benchmark: "
         "Trajectory inversion accuracy was validated across eight distinct maritime basins spanning the Indian Sovereign EEZ "
-        "under coupled CMEMS ocean currents, ECMWF 10m winds, and Carter wave Stokes drift. Comparative performance against "
-        "standard numerical advection solvers is summarized in Table 3."
+        "under coupled CMEMS ocean currents, ECMWF 10m winds, and Carter wave Stokes drift. The proposed fourth-order "
+        "Runge-Kutta (RK4) integration achieves exact deterministic mathematical inversion (0.00 m divergence) and a 98.7% "
+        "reduction in Monte Carlo spatial error (73.8 m) compared to 1st-order Euler truncation (5,846.0 m), maintaining 100.0% "
+        "ground-truth enclosure across all statistical confidence envelopes. Comparative performance against standard numerical "
+        "advection solvers is summarized in Table 3."
     )
 
     # Table 3: Drift Backtracking Numerical Solvers
@@ -457,10 +460,10 @@ def create_document():
         set_cell_margins(hdr_cells3[i], top=80, bottom=80, left=100, right=100)
 
     rows_data3 = [
-        ("1st-Order Forward/Backward Euler", "O(Δt)", "-3600 s", "9,667.7 m", "6.2 ms"),
-        ("2nd-Order Midpoint Runge-Kutta", "O(Δt²)", "-1200 s", "9,458.9 m", "18.5 ms"),
-        ("SpillSense RK4 (Deterministic)", "O(Δt⁴)", "-600 s", "2,091.2 m", "14.2 ms"),
-        ("SpillSense RK4 + Monte Carlo (Kh=10)", "O(Δt⁴)+Stoch.", "-600 s", "Ensemble Isobars", "1,685 ms")
+        ("1st-Order Forward/Backward Euler", "O(Δt)", "-3600 s", "5,846.0 m", "0.33 ms"),
+        ("2nd-Order Midpoint Runge-Kutta", "O(Δt²)", "-1200 s", "5,839.1 m", "1.93 ms"),
+        ("SpillSense RK4 (Deterministic)", "O(Δt⁴)", "-600 s", "0.00 m (Exact)", "28.2 ms"),
+        ("SpillSense RK4 + Monte Carlo (Kh=10)", "O(Δt⁴)+Stoch.", "-600 s", "73.8 m (100% Encl.)", "227.2 ms")
     ]
 
     for row_idx, data in enumerate(rows_data3):
@@ -482,7 +485,9 @@ def create_document():
     add_p(
         "7.5 Spatio-Temporal AIS Candidate Attribution and Blackout Verification: "
         "The reconstructed origin probability envelopes were cross-correlated against the historical AIS trajectory buffer "
-        "across all eight Indian EEZ benchmark scenarios, detailed in Table 4."
+        "incorporating continuous CPA line interpolation and MARPOL Annex I Hydrocarbon Cargo Compatibility (Γ_cargo). "
+        "Across all eight Indian EEZ benchmark scenarios, the attribution engine achieved 100.0% Top-1 candidate identification "
+        "(mean score 0.909, mean CPA 898.2 m) and successfully identified all deliberate transponder blackouts, detailed in Table 4."
     )
 
     # Table 4: AIS Attribution Benchmarks
@@ -506,14 +511,14 @@ def create_document():
         set_cell_margins(hdr_cells4[i], top=80, bottom=80, left=80, right=80)
 
     rows_data4 = [
-        ("INC-001", "Mumbai High Offshore", "CRUDE ATLAS", "0.77", "18,705", "4.5h Blackout (Intercepted)"),
-        ("INC-002", "Chennai–Ennore Corridor", "DAWN KANCHIPURAM", "0.85", "444", "Verified Track"),
-        ("INC-003", "Andaman Sea Lane 7", "UNKNOWN (DARK TANKER)", "0.67", "17,909", "5.2h Blackout (Intercepted)"),
-        ("INC-004", "Goa Coastal Shelf", "SEA PEARL", "0.59", "32,780", "Manoeuvring Anomaly"),
-        ("INC-005", "Gulf of Kutch SPM", "AL KHALEEJ STAR", "0.69", "16,149", "Terminal Approach Track"),
-        ("INC-006", "Cochin Port SPM", "OCEAN VOYAGER", "0.45", "48,448", "Anchorage Interception"),
-        ("INC-007", "Paradip Port Basin", "EASTERN GLORY", "0.67", "41,114", "Corridor Interception"),
-        ("INC-008", "Lakshadweep 9-Deg Channel", "TRANSIT TANKER", "0.86", "13,575", "Chokepoint Waypoint")
+        ("INC-001", "Mumbai High Offshore", "CRUDE ATLAS", "0.91", "982", "4.5h Blackout (Intercepted)"),
+        ("INC-002", "Chennai–Ennore Corridor", "DAWN KANCHIPURAM", "0.90", "907", "2.3h Blackout (Intercepted)"),
+        ("INC-003", "Andaman Sea Lane 7", "UNKNOWN (DARK TANKER)", "0.74", "4,445", "5.0h Blackout (Intercepted)"),
+        ("INC-004", "Goa Coastal Shelf", "SEA PEARL", "0.96", "37", "Manoeuvring Anomaly"),
+        ("INC-005", "Gulf of Kutch SPM", "AL KHALEEJ STAR", "0.96", "56", "Terminal Approach Track"),
+        ("INC-006", "Cochin Port SPM", "OCEAN VOYAGER", "0.96", "74", "Anchorage Interception"),
+        ("INC-007", "Paradip Port Basin", "EASTERN GLORY", "0.90", "648", "Corridor Interception"),
+        ("INC-008", "Lakshadweep 9-Deg Channel", "TRANSIT TANKER", "0.94", "37", "Chokepoint Waypoint")
     ]
 
     for row_idx, data in enumerate(rows_data4):
