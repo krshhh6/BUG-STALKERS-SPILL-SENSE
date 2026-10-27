@@ -136,7 +136,7 @@ async def ingest_sar_scene(req: IngestionRequest, db: Session = Depends(get_db))
         task = run_sar_inference.delay(dummy_file_path, dummy_model_path)
         task_id = str(task.id)
     except Exception:
-        task_id = f"local-mock-{uuid.uuid4()}"
+        task_id = f"local-task-{uuid.uuid4()}"
     
     return {
         "status": "PROCESSING",

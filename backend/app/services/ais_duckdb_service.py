@@ -117,15 +117,5 @@ class DuckDBSpatialAISService:
             except Exception:
                 pass # Fallback below
 
-        # Fallback benchmark mock data if duckdb is not installed or dataset is not mounted
-        return [
-            {
-                "mmsi": "419001234",
-                "vessel_name": "CRUDE ATLAS",
-                "timestamp": start_time_iso,
-                "latitude": (min_lat + max_lat) / 2,
-                "longitude": (min_lon + max_lon) / 2,
-                "sog": 12.4,
-                "cog": 215.0
-            }
-        ]
+        # Return empty list if no historical records match
+        return []

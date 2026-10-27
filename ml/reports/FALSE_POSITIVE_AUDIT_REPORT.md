@@ -1,6 +1,6 @@
 # SpillSense (SIH-26143) — False-Positive Elimination & Regression Audit Report
 
-**Audit Date:** 2026-10-27 17:53:02 UTC  
+**Audit Date:** 2026-10-27 18:49:57 UTC  
 **Authoritative Land Dataset:** Natural Earth 50m (1420 land polygons) + India Coastline Outline (1 polygons)  
 **Model Architecture:** SpillSegNet Dual-Pol U-Net (ONNX) + DualPolOilSpillNet Classifier  
 
@@ -55,7 +55,7 @@ All critical land, coastline, and radar-shadow false positives have been audited
 - **False Alerts:** 0 (100% suppressed)
 
 ### Category 8: Overlapping Tile Seams & Window Blending
-- **2D Hann Blending Runtime:** 64.7 ms
+- **2D Hann Blending Runtime:** 56.8 ms
 - **Seam Border Artifacts:** 0 (Smooth spatial continuity preserved)
 
 ---

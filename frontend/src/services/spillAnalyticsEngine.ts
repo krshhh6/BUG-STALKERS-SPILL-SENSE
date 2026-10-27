@@ -147,8 +147,10 @@ export function computeSpillAnalyticsFromDetection(params: {
     }
   }
 
-  const randId = Math.floor(100 + Math.random() * 900);
-  const incidentId = `INC-SAR-${randId}`;
+  const incidentSuffix = params.geoBounds?.centerLat 
+    ? `${Math.abs(Math.round(params.geoBounds.centerLat * 100))}` 
+    : Date.now().toString().slice(-4);
+  const incidentId = `INC-SAR-${incidentSuffix}`;
 
   return {
     incidentId,

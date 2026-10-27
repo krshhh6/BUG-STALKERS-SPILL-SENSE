@@ -27,6 +27,7 @@ from scipy.stats import gaussian_kde
 from shapely.geometry import Polygon, MultiPolygon, Point, box, mapping
 from shapely.ops import unary_union
 import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from app.services.land_sea_mask_service import LandSeaMaskService
