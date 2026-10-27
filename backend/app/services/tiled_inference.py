@@ -193,7 +193,8 @@ class TiledSARInferenceEngine:
 
         # Authoritative Classifier Gating: screen out ship wakes and look-alikes
         cls_prob = self.run_classifier_gate(vv_db, vh_db, computed_sea_mask)
-        if cls_prob < 0.08:
+        gate_threshold = 0.08 if (sensitivity_threshold is not None and sensitivity_threshold < 0.20) else 0.10
+        if cls_prob < gate_threshold:
             return {
                 "status": "no_oil_detected",
                 "polygons": [],
@@ -332,6 +333,7 @@ class TiledSARInferenceEngine:
 
         # Execute ONNX Runtime engine (SpillSegNet Dual-Pol)
         if hasattr(self.engine, "ort_session") and self.engine.ort_session is not None:
+
             try:
                 vv_512 = cv2.resize(vv_norm, (512, 512), interpolation=cv2.INTER_LINEAR)
                 vh_512 = cv2.resize(vh_norm, (512, 512), interpolation=cv2.INTER_LINEAR)
@@ -363,6 +365,7 @@ class TiledSARInferenceEngine:
         ocean_val = float(np.percentile(tile_vv[tile_sea == 1], 65)) if np.any(tile_sea == 1) else -14.0
         heuristic_prob = np.clip(((ocean_val - 4.5) - tile_vv) / 6.0, 0.0, 1.0)
         return heuristic_prob * tile_sea.astype(np.float32)
+
 
     def _calculate_uncertainty(
         self,

@@ -1,141 +1,140 @@
-import os
-import pandas as pd
-from typing import Dict, List
+# -*- coding: utf-8 -*-
+"""
+SpillSense (SIH-26143) — AIS Vessel Correlation & Forensic Attribution Task
+===========================================================================
+Correlates candidate vessel trajectories against the 4D Lagrangian origin
+envelope reconstructed by the backward drift engine.
+
+Evaluates:
+1. Spatial Overlap (Intersection with 50%, 75%, 95% probability isobars).
+2. Closest Point of Approach (CPA) and Time of Closest Approach (TCA).
+3. AIS Transponder Silence (Dark vessel gap analysis during transit).
+4. Vessel Risk Prior (Tanker / Bulk crude carrier vs innocent bystander).
+"""
+
+import logging
+from typing import Dict, List, Any, Optional
+from datetime import datetime, timezone
 from celery import shared_task
 from shapely.wkt import loads as wkt_loads
-try:
-    import geopandas as gpd
-    import movingpandas as mpd
-except ImportError:
-    gpd = None
-    mpd = None
+from shapely.geometry import Point, MultiPolygon, Polygon
+
+from app.services.ais_history_service import AISTrajectoryBuffer
+
+logger = logging.getLogger(__name__)
+
 
 @shared_task
 def correlate_ais_vessels(
     incident_id: str,
     envelopes_wkt: Dict[str, str],
     time_window_start: str,
-    time_window_end: str
-):
+    time_window_end: str,
+    origin_lat: Optional[float] = None,
+    origin_lon: Optional[float] = None
+) -> Dict[str, Any]:
     """
     Correlates AIS vessel tracks against the Monte Carlo drift probability envelopes.
-    Identifies candidate vessels and calculates an attribution score based on:
-    1. Spatial Overlap (High/Medium/Low envelope hit)
-    2. AIS Gap Analysis (Dark ship detection)
-    
-    Args:
-        incident_id: ID of the incident
-        envelopes_wkt: Dict containing 'high', 'medium', 'low' WKT MultiPolygons
-        time_window_start: ISO format start time of interception window
-        time_window_end: ISO format end time of interception window
-        
-    Returns:
-        List of candidate vessels with attribution scores.
+    Identifies candidate vessels and calculates an authentic attribution score.
     """
-    if gpd is None or mpd is None:
-        return {"status": "failed", "error": "geopandas or movingpandas not installed."}
-
-    # For the SIH Hackathon, we load a static CSV of historical AIS data.
-    # In a live environment, this would query the PostGIS database or Spire API.
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    ais_data_path = os.path.join(base_dir, '..', 'data', 'ais', 'historical_ais_sample.csv')
-    
-    if not os.path.exists(ais_data_path):
-        # Create a mock result if the CSV isn't mounted yet
-        return {
-            "status": "success",
-            "incident_id": incident_id,
-            "candidates": [
-                {
-                    "mmsi": "419001234",
-                    "name": "CRUDE ATLAS",
-                    "overall_score": 82.5,
-                    "spatial_match": 100, # Hit the High confidence core
-                    "ais_continuity": 45, # Significant gap (Dark Ship)
-                    "trajectory_alignment": 88
-                }
-            ]
-        }
-        
     try:
-        # Load AIS data
-        df = pd.read_csv(ais_data_path)
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        
-        # Filter strictly by the interception time window
-        start_dt = pd.to_datetime(time_window_start)
-        end_dt = pd.to_datetime(time_window_end)
-        df_filtered = df[(df['timestamp'] >= start_dt) & (df['timestamp'] <= end_dt)]
-        
-        if df_filtered.empty:
-            return {"status": "success", "incident_id": incident_id, "candidates": []}
+        buffer = AISTrajectoryBuffer.get_instance()
 
-        # Create GeoDataFrame
-        gdf = gpd.GeoDataFrame(
-            df_filtered, 
-            geometry=gpd.points_from_xy(df_filtered.longitude, df_filtered.latitude),
-            crs="EPSG:4326"
+        # Parse temporal window
+        t_start_dt = datetime.fromisoformat(time_window_start.replace("Z", "+00:00"))
+        t_end_dt = datetime.fromisoformat(time_window_end.replace("Z", "+00:00"))
+        t_start_ts = t_start_dt.timestamp()
+        t_end_ts = t_end_dt.timestamp()
+
+        # Parse envelopes or extract centroid
+        poly_high = None
+        poly_med = None
+        poly_low = None
+
+        if "high" in envelopes_wkt:
+            try:
+                poly_high = wkt_loads(envelopes_wkt["high"])
+            except Exception:
+                pass
+        if "medium" in envelopes_wkt:
+            try:
+                poly_med = wkt_loads(envelopes_wkt["medium"])
+            except Exception:
+                pass
+        if "low" in envelopes_wkt:
+            try:
+                poly_low = wkt_loads(envelopes_wkt["low"])
+            except Exception:
+                pass
+
+        # If origin lat/lon not explicitly passed, infer from envelope centroid
+        if origin_lat is None or origin_lon is None:
+            if poly_high and not poly_high.is_empty:
+                origin_lat = poly_high.centroid.y
+                origin_lon = poly_high.centroid.x
+            elif poly_med and not poly_med.is_empty:
+                origin_lat = poly_med.centroid.y
+                origin_lon = poly_med.centroid.x
+            else:
+                origin_lat = 18.743
+                origin_lon = 71.218
+
+        # Query 4D historical trajectory buffer
+        candidates_raw = buffer.query_historical_candidates(
+            origin_lat=origin_lat,
+            origin_lon=origin_lon,
+            start_time=t_start_ts,
+            end_time=t_end_ts,
+            radius_nm=40.0
         )
-        
-        # Load Envelopes
-        poly_high = wkt_loads(envelopes_wkt.get('high', 'POLYGON EMPTY')) if 'high' in envelopes_wkt else None
-        poly_med = wkt_loads(envelopes_wkt.get('medium', 'POLYGON EMPTY')) if 'medium' in envelopes_wkt else None
-        poly_low = wkt_loads(envelopes_wkt.get('low', 'POLYGON EMPTY')) if 'low' in envelopes_wkt else None
-        
+
+        # Refine candidates with exact polygon intersection if WKT polygons exist
         candidates = []
-        
-        # Group by vessel
-        for mmsi, group in gdf.groupby('mmsi'):
-            # Build trajectory using movingpandas
-            traj = mpd.Trajectory(group, traj_id=mmsi, t='timestamp')
-            
-            # Spatial Intersection Check
-            hit_high = poly_high is not None and traj.intersects(poly_high)
-            hit_med = poly_med is not None and traj.intersects(poly_med)
-            hit_low = poly_low is not None and traj.intersects(poly_low)
-            
-            if not (hit_high or hit_med or hit_low):
-                continue # Vessel didn't cross the origin envelope
-                
-            # Score 1: Spatial Match
-            spatial_score = 100 if hit_high else (75 if hit_med else 50)
-            
-            # Score 2: AIS Gap Analysis (Dark ship detection)
-            # Find the maximum time gap between AIS pings
-            time_diffs = group['timestamp'].diff().dt.total_seconds()
-            max_gap_hours = time_diffs.max() / 3600.0 if not pd.isna(time_diffs.max()) else 0
-            
-            # If gap > 2 hours, it's highly suspicious (score drops significantly as continuity fails)
-            # But high suspicion = higher likelihood of being the culprit in a spill scenario
-            # Wait, "AIS Continuity" is the metric. Low continuity = High suspicion.
-            # We want overall_score to reflect the probability of being the culprit.
-            # So a larger gap INCREASES the dark ship penalty flag, which increases attribution score.
-            dark_ship_multiplier = 1.0
-            if max_gap_hours > 4.0:
-                dark_ship_multiplier = 1.4 # Highly suspicious
-            elif max_gap_hours > 2.0:
-                dark_ship_multiplier = 1.2 # Suspicious
-                
-            base_score = spatial_score * 0.7 # Spatial is 70% of the weight
-            
-            overall = min(100.0, base_score * dark_ship_multiplier)
-            
+        for c in candidates_raw:
+            # Check if any waypoint or trajectory segment physically intersected the polygon envelopes
+            hit_high = False
+            hit_med = False
+            hit_low = False
+
+            if poly_high or poly_med or poly_low:
+                for pt in c.get("trajectory", []):
+                    p = Point(pt["lng"], pt["lat"])
+                    if poly_high and poly_high.contains(p):
+                        hit_high = True
+                    if poly_med and poly_med.contains(p):
+                        hit_med = True
+                    if poly_low and poly_low.contains(p):
+                        hit_low = True
+
+            spatial_score = 100 if hit_high else (75 if hit_med else (50 if hit_low else c["metrics"]["spatial_match_pct"]))
+
             candidates.append({
-                "mmsi": str(mmsi),
-                "name": group['vessel_name'].iloc[0] if 'vessel_name' in group.columns else "UNKNOWN",
-                "overall_score": round(overall, 1),
+                "mmsi": str(c["mmsi"]),
+                "name": c["name"],
+                "imo": c.get("imo", "N/A"),
+                "flag": c.get("flag", "International"),
+                "ship_type": c.get("type", "Commercial Vessel"),
+                "overall_score": c["attribution_score"] * 100.0 if c["attribution_score"] <= 1.0 else c["attribution_score"],
                 "spatial_match": spatial_score,
-                "max_ais_gap_hours": round(max_gap_hours, 2)
+                "cpa_nm": c.get("cpa_nm", 0.0),
+                "time_delta_hours": c.get("time_delta_hours", 0.0),
+                "max_ais_gap_hours": c.get("ais_gap_hours", 0.0),
+                "dark_vessel_suspect": c.get("dark_vessel_suspect", False),
+                "risk": c.get("risk", "LOW"),
+                "trajectory": c.get("trajectory", [])
             })
-            
-        # Sort by highest probability
-        candidates = sorted(candidates, key=lambda x: x['overall_score'], reverse=True)
-        
+
+        # Sort descending by overall attribution score
+        candidates.sort(key=lambda x: x["overall_score"], reverse=True)
+
         return {
             "status": "success",
             "incident_id": incident_id,
+            "origin_coordinates": {"lat": origin_lat, "lon": origin_lon},
+            "candidate_count": len(candidates),
             "candidates": candidates
         }
-        
+
     except Exception as e:
-        return {"status": "failed", "error": str(e)}
+        logger.error(f"[correlate_ais_vessels] Correlation error for {incident_id}: {e}")
+        return {"status": "failed", "incident_id": incident_id, "error": str(e)}

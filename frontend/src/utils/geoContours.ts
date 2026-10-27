@@ -1,3 +1,5 @@
+import type { LiveSimulationResult } from '../services/marineWeatherService';
+
 // Dynamic GIS geometry utilities for real Sentinel-1 ML model polygon outputs & hydrodynamics
 
 export interface DriftGeometry {
@@ -157,11 +159,32 @@ function roundCoord(num: number): number {
  */
 export function computeBackwardDriftGeometry(
   scenarioId: string,
-  incidentCoord: [number, number]
+  incidentCoord: [number, number],
+  dynamicSimulation?: LiveSimulationResult | null
 ): DriftGeometry {
   const safeCoord = clampToNavigableWaters(incidentCoord);
   const lat = safeCoord[0];
   const lng = safeCoord[1];
+
+  // If live physical simulation result is available, return its genuine hydrodynamic trajectories
+  if (dynamicSimulation && dynamicSimulation.originCoordNumeric && dynamicSimulation.envelope90?.length > 0) {
+    return {
+      envelope90: dynamicSimulation.envelope90,
+      envelope75: dynamicSimulation.envelope75,
+      envelope50: dynamicSimulation.envelope50,
+      driftPath: dynamicSimulation.backtrackPath,
+      originCoord: dynamicSimulation.originCoordNumeric,
+      vesselTrack: dynamicSimulation.vesselTrack,
+      aisGapTrack: dynamicSimulation.aisGapTrack,
+      vesselHeading: dynamicSimulation.vesselHeading,
+      forwardDriftPath: dynamicSimulation.forwardDriftPath,
+      forwardCone24h: dynamicSimulation.forwardCone24h,
+      forwardCone12h: dynamicSimulation.forwardCone12h,
+      predictedCoord24h: dynamicSimulation.predictedCoord24h,
+      predictedCoord12h: dynamicSimulation.predictedCoord12h,
+      coastalBoundary: [],
+    };
+  }
 
   let driftAngle = 0.0;
   let originLat = lat;
@@ -172,12 +195,13 @@ export function computeBackwardDriftGeometry(
 
   if (scenarioId.includes('001')) {
     // Bombay High (Arabian Sea, 160km offshore Mumbai)
-    driftAngle = 2.45;
-    originLat = lat + 0.06;
-    originLng = lng - 0.07;
-    heading = 205; // SSW Arabian Sea transit
-    fwdDLat = -0.065;
-    fwdDLng = 0.075;
+    // Surface jet flows ENE (~065°). Reconstructed discharge origin is upstream in WSW.
+    driftAngle = 1.15;
+    originLat = lat - 0.12;
+    originLng = lng - 0.09;
+    heading = 135; // SE Arabian Sea transit fairway
+    fwdDLat = 0.085;
+    fwdDLng = 0.095;
   } else if (scenarioId.includes('002')) {
     // Chennai Coast / Ennore Port (Bay of Bengal)
     driftAngle = 0.35;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { Scenario, BaseLayerType, CopernicusLayerId, CopernicusLayerInfo, DetectionResult } from '../types/dashboard';
+import type { Scenario, BaseLayerType, CopernicusLayerId, CopernicusLayerInfo, DetectionResult, SarDriftPayload } from '../types/dashboard';
+import type { LiveSimulationResult } from '../services/marineWeatherService';
 import { LeafletMap } from './LeafletMap';
 import { TimeScrubber } from './TimeScrubber';
 import { CleanupModal } from './modals/CleanupModal';
@@ -22,6 +23,8 @@ interface MapPanelProps {
     sub?: string;
     category?: string;
   } | null;
+  sarDriftPayload?: SarDriftPayload | null;
+  activeDriftSimulation?: LiveSimulationResult | null;
 }
 
 const COPERNICUS_LAYERS: CopernicusLayerInfo[] = [
@@ -115,6 +118,8 @@ export const MapPanel: React.FC<MapPanelProps> = ({
   onSelectScenario,
   scenarios,
   targetLocation,
+  sarDriftPayload,
+  activeDriftSimulation,
 }) => {
   const [baseLayer2D, setBaseLayer2D] = useState<BaseLayerType>('arcgis');
   const showSeamarks = false;
@@ -1074,6 +1079,8 @@ export const MapPanel: React.FC<MapPanelProps> = ({
           mapRef={leafletMapRef}
           scenarios={scenarios}
           targetLocation={targetLocation}
+          sarDriftPayload={sarDriftPayload}
+          activeDriftSimulation={activeDriftSimulation}
         />
 
         {/* Cartographic Legend (Superhuman Glassmorphic HUD at Bottom-Right) */}

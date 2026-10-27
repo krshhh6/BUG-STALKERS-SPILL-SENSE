@@ -207,14 +207,14 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 16,
-          flexWrap: 'nowrap',
+          alignItems: 'flex-start',
+          gap: 14,
+          flexWrap: 'wrap',
           marginBottom: 16,
         }}
       >
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <div style={{ minWidth: 260, flex: '1 1 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
             <span
               style={{
                 display: 'inline-flex',
@@ -235,27 +235,32 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
               Digital Forensics &amp; Chain of Custody
             </span>
             <span
-              className="scenario-chip"
               style={{
-                borderColor: 'rgba(37, 99, 235, 0.4)',
-                color: 'var(--accent)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
                 padding: '2px 8px',
-                fontSize: 10.5,
-                whiteSpace: 'nowrap',
+                borderRadius: 6,
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                color: '#10b981',
+                fontSize: 10,
+                fontWeight: 700,
               }}
             >
-              {activeScenario?.id || 'INC-2026-001'} · {activeScenario?.title || 'Active Surveillance'}
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>lock</span>
+              ISO/IEC 27037 · Sec 63 BSA 2023
             </span>
           </div>
-          <h1 className="workspace-main-title" style={{ fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
+          <h1 className="workspace-main-title" style={{ fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
             Forensic Evidence &amp; Chain of Custody
           </h1>
           <p className="workspace-sub-title" style={{ margin: '3px 0 0', fontSize: 11.5, color: 'var(--text-muted)' }}>
-            Cryptographically Verifiable Evidence Package for Maritime Regulatory Enforcement · ISO/IEC 27037 · Sec 63 BSA 2023
+            Cryptographically Verifiable Evidence Package for Maritime Regulatory Enforcement
           </p>
         </div>
 
-        <div className="workspace-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div className="workspace-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flex: '0 1 auto' }}>
           {/* INCIDENT SWITCHER DROPDOWN */}
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
             <span
@@ -288,8 +293,8 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
                 cursor: 'pointer',
                 appearance: 'auto',
                 outline: 'none',
-                maxWidth: 240,
-                whiteSpace: 'nowrap',
+                minWidth: 220,
+                maxWidth: 280,
               }}
               title="Select Active Incident Dossier"
             >
@@ -307,7 +312,7 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
             title="Copy Master SHA-256 Fingerprint"
             style={{ fontSize: 11.5, padding: '5px 12px', height: 32, whiteSpace: 'nowrap' }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>content_copy</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>content_copy</span>
             <span>Copy Master Signature</span>
           </button>
 
@@ -317,9 +322,22 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
             title="Generate & View Court-Admissible PDF Dossier"
             style={{ fontSize: 11.5, padding: '5px 14px', height: 32, whiteSpace: 'nowrap' }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>description</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>description</span>
             <span>Official Court Dossier</span>
           </button>
+
+          <a
+            href={`http://127.0.0.1:8000/api/v1/dossier/${activeScenario?.id || 'INC-001'}/download`}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={`dossier_${activeScenario?.id || 'INC-001'}.pdf`}
+            className="action-pill-btn secondary"
+            title="Download Authenticated ReportLab Binary PDF from Backend API"
+            style={{ fontSize: 11.5, padding: '5px 14px', height: 32, whiteSpace: 'nowrap', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>download</span>
+            <span>Download Signed PDF</span>
+          </a>
         </div>
       </div>
 
@@ -570,35 +588,80 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
                   </button>
                 </div>
 
-                {/* FORMATTED 8-CHAR CHUNKS HASH DISPLAY */}
+                {/* BALANCED 4x2 GRID SHA-256 FINGERPRINT DISPLAY */}
                 <div
                   style={{
                     background: 'var(--bg-base)',
                     border: '1px solid var(--border-subtle)',
                     borderRadius: 8,
-                    padding: '10px 12px',
+                    padding: '12px 14px',
                     fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: 10.5,
-                    color: 'var(--accent)',
+                    fontSize: 11,
                     display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 6,
-                    lineHeight: 1.45,
+                    flexDirection: 'column',
+                    gap: 10,
                   }}
                 >
-                  {hashChunks.map((chunk, i) => (
-                    <span
-                      key={i}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gap: 6,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {hashChunks.map((chunk, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          padding: '4px 6px',
+                          background: 'rgba(37, 99, 235, 0.08)',
+                          border: '1px solid rgba(37, 99, 235, 0.16)',
+                          borderRadius: 5,
+                          color: 'var(--accent)',
+                          fontWeight: 600,
+                          letterSpacing: '0.06em',
+                        }}
+                      >
+                        {chunk}
+                      </span>
+                    ))}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      borderTop: '1px solid var(--border-subtle)',
+                      paddingTop: 8,
+                      fontSize: 10,
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#10B981' }}>verified</span>
+                      <span>W3C WebCrypto SHA-256 · 64 Hex Characters</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopySignature}
                       style={{
-                        padding: '2px 5px',
-                        background: 'rgba(37, 99, 235, 0.08)',
-                        borderRadius: 4,
-                        letterSpacing: '0.04em',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--accent)',
+                        cursor: 'pointer',
+                        fontSize: 10.5,
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        padding: 0,
                       }}
                     >
-                      {chunk}
-                    </span>
-                  ))}
+                      <span className="material-symbols-outlined" style={{ fontSize: 13 }}>content_copy</span>
+                      <span>Copy Full String</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div
@@ -630,7 +693,7 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
               </div>
 
               {/* EXPORTABLE FORENSIC ARTIFACTS LIST */}
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: 10, marginTop: 4 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4, maxHeight: 370, overflowY: 'auto', paddingRight: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent)' }}>folder_zip</span>

@@ -44,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const fetchAis = async () => {
       try {
         const res = await fetch('/api/v1/ais/stream-status');
-        if (res.ok) {
+        if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
           const data = await res.json();
           if (mounted && data.total_live_vessels_tracked !== undefined) {
             setAisCount(data.total_live_vessels_tracked);
@@ -146,6 +146,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <span className="nav-pill-badge">14d</span>
             </button>
+
+            <button
+              className={`drawer-nav-item ${activeTab === 'globe' ? 'active' : ''}`}
+              onClick={() => onSelectTab('globe')}
+            >
+              <div className="drawer-nav-left">
+                <span className="material-symbols-outlined nav-icon">public</span>
+                <span className="nav-label">3D Tactical Globe</span>
+              </div>
+              <span className="nav-pill-badge" style={{ background: '#7c3aed', color: '#fff' }}>NEW</span>
+            </button>
           </nav>
         </div>
 
@@ -231,7 +242,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <span className="tree-label" title={`${s.id}: ${s.title}`}>
                         {s.title}
                       </span>
-                      <span className="tree-count">—</span>
+                      <span className="tree-count">â€”</span>
                     </div>
                   );
                 })}

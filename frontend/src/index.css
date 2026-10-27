@@ -2774,7 +2774,7 @@ svg { display: block; flex-shrink: 0; }
     gap: 0 !important;
     width: 100% !important;
     height: 100% !important;
-    padding-bottom: 56px !important; /* Space for mobile bottom nav */
+    padding-bottom: 84px !important; /* Space for mobile bottom nav */
     overflow: hidden !important;
   }
 
@@ -3399,6 +3399,7 @@ svg { display: block; flex-shrink: 0; }
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
   z-index: 3;
 }
+
 
 .gis-glass-capsule {
   position: absolute;

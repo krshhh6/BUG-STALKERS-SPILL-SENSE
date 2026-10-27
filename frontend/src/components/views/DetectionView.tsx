@@ -11,7 +11,7 @@ import {
   extractCroppedImageDataUrl,
   type DualPolInputRasters,
 } from '../../services/sarClassifier';
-import { decodeTiffFile } from '../../utils/tiffDecoder';
+import { decodeTiffFile, type GeoBounds } from '../../utils/tiffDecoder';
 import {
   computeSpillAnalyticsFromDetection,
   analyticsToIncident,
@@ -53,6 +53,7 @@ export const DetectionView: React.FC<DetectionViewProps> = ({
   const [screenshotNotice, setScreenshotNotice] = useState<string | null>(null);
   const [feedbackStatus, setFeedbackStatus] = useState<string | null>(null);
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [currentGeoBounds, setCurrentGeoBounds] = useState<GeoBounds | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLElement>(null);
 
@@ -162,7 +163,7 @@ export const DetectionView: React.FC<DetectionViewProps> = ({
         setTiffNotice(`Decoding GeoTIFF: ${file.name}...`);
         const decoded = await decodeTiffFile(file);
         setTiffNotice(`🛰️ GeoTIFF Decoded: ${file.name} — ${decoded.formatDescription}`);
-        handleImageSelect(decoded.dataUrl, { vvRaster: decoded.vvRaster, vhRaster: decoded.vhRaster }, file.name);
+        handleImageSelect(decoded.dataUrl, { vvRaster: decoded.vvRaster, vhRaster: decoded.vhRaster }, file.name, decoded.geoBounds);
       } catch (err) {
         console.error('Failed to decode TIFF:', err);
         setTiffNotice('❌ Failed to decode TIFF/GeoTIFF raster.');
@@ -182,9 +183,11 @@ export const DetectionView: React.FC<DetectionViewProps> = ({
     imageSource: string,
     rasters?: DualPolInputRasters,
     cropBox?: CropBox,
-    resolvedName?: string
+    resolvedName?: string,
+    geoBounds?: GeoBounds
   ) => {
     const finalName = resolvedName || currentFileName;
+    const activeBounds = geoBounds ?? currentGeoBounds;
     setIsProcessing(true);
     setResult(null);
     setHeatmapUrl(null);
@@ -219,6 +222,8 @@ export const DetectionView: React.FC<DetectionViewProps> = ({
             imageName: finalName,
             imageUrl: imageSource,
             maskUrl: res.segmentationMask,
+            geoBounds: activeBounds,
+            customCoords: activeBounds ? { lat: activeBounds.centerLat, lng: activeBounds.centerLng } : undefined,
           });
           setAnalyticsResult(analytics);
 
@@ -244,7 +249,8 @@ export const DetectionView: React.FC<DetectionViewProps> = ({
   const handleImageSelect = (
     url: string,
     rasters?: DualPolInputRasters,
-    customName?: string
+    customName?: string,
+    geoBounds?: GeoBounds
   ) => {
     const resolvedName = customName || (url.includes('/') ? url.split('/').pop()?.split('?')[0] : 'SAR Scene') || 'SAR Scene';
     setRawImage(url);
@@ -255,8 +261,9 @@ export const DetectionView: React.FC<DetectionViewProps> = ({
     setActiveCropBox(null);
     setIsFullScenePreview(false);
     setCropNotice(null);
+    setCurrentGeoBounds(geoBounds);
 
-    runEvaluation(url, rasters, undefined, resolvedName);
+    runEvaluation(url, rasters, undefined, resolvedName, geoBounds);
   };
 
   const handleAutoDetectAndCrop = () => {
@@ -544,7 +551,95 @@ export const DetectionView: React.FC<DetectionViewProps> = ({
             ))}
           </div>
         </div>
-      </section>
+      
+      {/* INITIAL STATE: NEURAL INFERENCE ENGINE TELEMETRY PANEL */}
+      {!selectedImage && (
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 16,
+            padding: '20px 24px',
+            marginTop: 14,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: 'rgba(0, 229, 255, 0.12)',
+                  color: 'var(--accent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>neurology</span>
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  SpillSegNet Deep Learning Pipeline · Ready
+                </h4>
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
+                  Calibrated for Sentinel-1 C-SAR IW GRD Dual-Polarization (VV + VH) Microwave Scans
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleImageSelect(activeCategoryData.images[0], undefined, '00_oil_vv.png')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 16px',
+                borderRadius: 8,
+                background: 'var(--accent)',
+                color: '#0A0F1D',
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(0, 229, 255, 0.35)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>play_arrow</span>
+              <span>Run Instant Benchmark Inference (Scene #1)</span>
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div style={{ background: 'var(--bg-raised)', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Tensor Input Contract</span>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)', marginTop: 4, fontFamily: 'JetBrains Mono' }}>[1, 2, 512, 512]</div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', marginTop: 2 }}>Channel 0: VV · Channel 1: VH (Co-pol & Cross-pol)</div>
+            </div>
+
+            <div style={{ background: 'var(--bg-raised)', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Physics Damping Calibration</span>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#10B981', marginTop: 4, fontFamily: 'JetBrains Mono' }}>Δσ0 &lt; -6.5 dB</div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', marginTop: 2 }}>Bragg scattering dampening threshold</div>
+            </div>
+
+            <div style={{ background: 'var(--bg-raised)', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Lookalike Wind Gating</span>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#F59E0B', marginTop: 4, fontFamily: 'JetBrains Mono' }}>3.0 to 10.0 m/s</div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', marginTop: 2 }}>ERA5 reanalysis low-wind rejection filter</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </section>
 
       {/* 2. ACTIVE SCENE & ROI CROPPING CONTROLS */}
       {selectedImage && (
@@ -1522,19 +1617,52 @@ export const DetectionView: React.FC<DetectionViewProps> = ({
                 metrics: result.metrics,
               };
 
-              // Inject real-world coordinates if a benchmark is selected
-              if (currentFileName && (currentFileName.includes('oil_00000') || currentFileName.includes('00_oil') || currentFileName.includes('class_1_1'))) {
-                payload.lat = 18.74;
-                payload.lng = 71.21;
+              // Georeferenced Origin Resolution Cascade
+              if (currentGeoBounds && typeof currentGeoBounds.centerLat === 'number' && typeof currentGeoBounds.centerLng === 'number') {
+                // 1. Embedded GeoTIFF GIS Corner Coordinate Metadata
+                payload.lat = +(currentGeoBounds.centerLat.toFixed(4));
+                payload.lng = +(currentGeoBounds.centerLng.toFixed(4));
+                payload.locationName = 'Uploaded Sentinel-1 GeoTIFF Footprint';
+              } else if (currentFileName && (currentFileName.includes('oil_00000') || currentFileName.includes('00_oil') || currentFileName.includes('class_1_1.') || currentFileName === 'class_1_1.jpg')) {
+                payload.lat = 18.743;
+                payload.lng = 71.218;
                 payload.locationName = 'Mumbai High Basin';
-              } else if (currentFileName && (currentFileName.includes('oil_00001') || currentFileName.includes('01_oil') || currentFileName.includes('class_1_2'))) {
-                payload.lat = 22.45;
-                payload.lng = 69.12;
+              } else if (currentFileName && (currentFileName.includes('oil_00001') || currentFileName.includes('01_oil') || currentFileName.includes('class_1_2.') || currentFileName === 'class_1_2.jpg')) {
+                payload.lat = 22.450;
+                payload.lng = 69.120;
                 payload.locationName = 'Gulf of Kutch Fairway';
-              } else if (currentFileName && (currentFileName.includes('oil_00002') || currentFileName.includes('02_oil') || currentFileName.includes('class_1_3'))) {
-                payload.lat = 13.26;
-                payload.lng = 80.47;
-                payload.locationName = 'Chennai Port Anchorage';
+              } else if (currentFileName && (currentFileName.includes('oil_00002') || currentFileName.includes('02_oil') || currentFileName.includes('class_1_3.') || currentFileName === 'class_1_3.jpg')) {
+                payload.lat = 13.260;
+                payload.lng = 80.470;
+                payload.locationName = 'Chennai-Ennore Corridor';
+              } else if (currentFileName && (currentFileName.includes('oil_00003') || currentFileName.includes('03_oil') || currentFileName.includes('class_1_4.') || currentFileName === 'class_1_4.jpg')) {
+                payload.lat = 15.480;
+                payload.lng = 73.610;
+                payload.locationName = 'Goa Coastal Waters Shelf';
+              } else if (currentFileName && (currentFileName.includes('oil_00004') || currentFileName.includes('04_oil') || currentFileName.includes('class_1_5.') || currentFileName === 'class_1_5.jpg')) {
+                payload.lat = 10.020;
+                payload.lng = 76.020;
+                payload.locationName = 'Cochin Port SPM Anchorage';
+              } else if (currentFileName && (currentFileName.includes('oil_00005') || currentFileName.includes('05_oil') || currentFileName.includes('class_1_6.') || currentFileName === 'class_1_6.jpg')) {
+                payload.lat = 20.180;
+                payload.lng = 86.610;
+                payload.locationName = 'Paradip Port Offshore Anchor';
+              } else if (currentFileName && (currentFileName.includes('oil_00006') || currentFileName.includes('06_oil') || currentFileName.includes('class_1_7.') || currentFileName === 'class_1_7.jpg')) {
+                payload.lat = 17.580;
+                payload.lng = 83.350;
+                payload.locationName = 'Visakhapatnam Outer Roads';
+              } else if (currentFileName && (currentFileName.includes('oil_00007') || currentFileName.includes('07_oil') || currentFileName.includes('class_1_8.') || currentFileName === 'class_1_8.jpg')) {
+                payload.lat = 8.520;
+                payload.lng = 72.880;
+                payload.locationName = 'Lakshadweep 9-Degree Channel';
+              } else if (currentFileName && (currentFileName.includes('oil_00008') || currentFileName.includes('08_oil') || currentFileName.includes('class_1_9.') || currentFileName === 'class_1_9.jpg')) {
+                payload.lat = 10.420;
+                payload.lng = 93.020;
+                payload.locationName = 'Andaman Sea Shipping Lane 7';
+              } else if (currentFileName && (currentFileName.includes('oil_00009') || currentFileName.includes('09_oil') || currentFileName.includes('class_1_10.') || currentFileName === 'class_1_10.jpg')) {
+                payload.lat = 21.320;
+                payload.lng = 88.050;
+                payload.locationName = 'Haldia-Sandheads Channel';
               }
 
               if (onFeedIntoDrift) {
@@ -1645,7 +1773,95 @@ export const DetectionView: React.FC<DetectionViewProps> = ({
               </div>
             );
           })()}
-        </section>
+        
+      {/* INITIAL STATE: NEURAL INFERENCE ENGINE TELEMETRY PANEL */}
+      {!selectedImage && (
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 16,
+            padding: '20px 24px',
+            marginTop: 14,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: 'rgba(0, 229, 255, 0.12)',
+                  color: 'var(--accent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>neurology</span>
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  SpillSegNet Deep Learning Pipeline · Ready
+                </h4>
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
+                  Calibrated for Sentinel-1 C-SAR IW GRD Dual-Polarization (VV + VH) Microwave Scans
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleImageSelect(activeCategoryData.images[0], undefined, '00_oil_vv.png')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 16px',
+                borderRadius: 8,
+                background: 'var(--accent)',
+                color: '#0A0F1D',
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(0, 229, 255, 0.35)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>play_arrow</span>
+              <span>Run Instant Benchmark Inference (Scene #1)</span>
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div style={{ background: 'var(--bg-raised)', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Tensor Input Contract</span>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)', marginTop: 4, fontFamily: 'JetBrains Mono' }}>[1, 2, 512, 512]</div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', marginTop: 2 }}>Channel 0: VV · Channel 1: VH (Co-pol & Cross-pol)</div>
+            </div>
+
+            <div style={{ background: 'var(--bg-raised)', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Physics Damping Calibration</span>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#10B981', marginTop: 4, fontFamily: 'JetBrains Mono' }}>Δσ0 &lt; -6.5 dB</div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', marginTop: 2 }}>Bragg scattering dampening threshold</div>
+            </div>
+
+            <div style={{ background: 'var(--bg-raised)', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Lookalike Wind Gating</span>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#F59E0B', marginTop: 4, fontFamily: 'JetBrains Mono' }}>3.0 to 10.0 m/s</div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', marginTop: 2 }}>ERA5 reanalysis low-wind rejection filter</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </section>
       )}
 
       {/* 3. SAR REGION OF INTEREST (ROI) PRECISION CROPPER MODAL */}

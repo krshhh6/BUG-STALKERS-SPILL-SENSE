@@ -25,6 +25,10 @@ class CorrelateRequest(BaseModel):
     incident_id: str = "INC-2026-001"
     lat: float = 18.743
     lng: float = 71.218
+    origin_lat: Optional[float] = None
+    origin_lng: Optional[float] = None
+    horizon_hours: Optional[float] = 24.0
+    use_historical: bool = True
     radius_nm: float = 30.0
     username: Optional[str] = None
     weights: CorrelationWeights = CorrelationWeights()
@@ -66,6 +70,48 @@ async def get_stream_status():
     }
 
 
+@router.get("/historical-candidates")
+async def get_historical_candidates(
+    incident_id: str = Query("INC-2026-001"),
+    origin_lat: float = Query(18.663),
+    origin_lng: float = Query(71.158),
+    horizon_hours: float = Query(24.0, description="Hours backwards from now for discharge window"),
+    radius_nm: float = Query(35.0, description="Spatial search radius in nautical miles"),
+    w_dist: float = Query(0.30),
+    w_time: float = Query(0.25),
+    w_gap: float = Query(0.25),
+    w_type: float = Query(0.20)
+):
+    """
+    Queries the 14-day rolling historical trajectory buffer to extract vessels whose
+    trajectories intersected the reconstructed backward Lagrangian drift origin envelope.
+    """
+    from app.services.ais_history_service import AISTrajectoryBuffer
+    buf = AISTrajectoryBuffer.get_instance()
+    now_ts = datetime.now(timezone.utc).timestamp()
+    t_discharge = now_ts - (horizon_hours * 3600.0)
+
+    weights = {"dist": w_dist, "time": w_time, "gap": w_gap, "type": w_type}
+    candidates = buf.query_historical_candidates(
+        origin_lat=origin_lat,
+        origin_lon=origin_lng,
+        start_time=t_discharge - 7200.0,
+        end_time=t_discharge + 7200.0,
+        radius_nm=radius_nm,
+        weights=weights
+    )
+
+    return {
+        "status": "SUCCESS",
+        "incident_id": incident_id,
+        "feed_source": "HISTORICAL_TRAJECTORY_BUFFER_4D",
+        "discharge_origin": {"lat": origin_lat, "lon": origin_lng},
+        "horizon_hours": horizon_hours,
+        "total_vessels_screened": len(candidates),
+        "candidates": candidates
+    }
+
+
 @router.post("/score")
 @router.post("/attribute")
 async def score_vessels(req: CorrelateRequest):
@@ -78,6 +124,33 @@ async def score_vessels(req: CorrelateRequest):
     latmax = req.lat + deg_delta
     lonmin = req.lng - deg_delta
     lonmax = req.lng + deg_delta
+
+    # If historical mode is enabled, query the rolling trajectory buffer at the discharge origin!
+    if req.use_historical and req.horizon_hours:
+        from app.services.ais_history_service import AISTrajectoryBuffer
+        buf = AISTrajectoryBuffer.get_instance()
+        now_ts = datetime.now(timezone.utc).timestamp()
+        t_discharge = now_ts - (req.horizon_hours * 3600.0)
+        target_lat = req.origin_lat if req.origin_lat is not None else req.lat
+        target_lng = req.origin_lng if req.origin_lng is not None else req.lng
+
+        hist_candidates = buf.query_historical_candidates(
+            origin_lat=target_lat,
+            origin_lon=target_lng,
+            start_time=t_discharge - 7200.0,
+            end_time=t_discharge + 7200.0,
+            radius_nm=req.radius_nm,
+            weights=req.weights.dict()
+        )
+        if hist_candidates:
+            return {
+                "status": "SUCCESS",
+                "incident_id": req.incident_id,
+                "feed_source": "HISTORICAL_TRAJECTORY_BUFFER_4D",
+                "total_vessels_screened": len(hist_candidates),
+                "candidates": hist_candidates,
+                "active_weights": req.weights.dict()
+            }
 
     stream_vessels = stream_service.get_live_vessels(latmin, latmax, lonmin, lonmax)
     if stream_vessels:

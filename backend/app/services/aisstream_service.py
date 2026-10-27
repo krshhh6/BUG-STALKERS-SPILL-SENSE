@@ -53,12 +53,19 @@ class AISStreamService:
     def __init__(self, api_key: Optional[str] = None):
         if self._initialized:
             return
-        self.api_key = api_key or os.getenv("AISSTREAM_API_KEY", "47c9a557f534c95dcc5a3912e4328cebafb3d861")
+        from app.core.config import settings
+        self.api_key = api_key or os.getenv("AISSTREAM_API_KEY") or getattr(settings, "AISSTREAM_API_KEY", "") or "a5905a6907b539642a35fb5f80dc5b19e423f4a4"
         self._vessels: Dict[str, Dict[str, Any]] = {}
         self._is_running = False
         self._task = None
         self._initialized = True
-        logger.info("AISStreamService initialized with API key.")
+        try:
+            from app.services.ais_history_service import AISTrajectoryBuffer
+            self.trajectory_buffer = AISTrajectoryBuffer.get_instance()
+        except Exception as e:
+            logger.warning(f"[AISStream] Trajectory buffer init error: {e}")
+            self.trajectory_buffer = None
+        logger.info("AISStreamService initialized.")
 
     def start_background_stream(self, loop=None):
         """Launches the background WebSocket listener task."""
@@ -177,6 +184,24 @@ class AISStreamService:
 
         is_tanker = any(t in v_type.lower() for t in ["tanker", "crude", "oil", "gas", "lng", "lpg", "chemical", "bunker"])
         nav_status = f"Underway ({sog:.1f} kn)" if sog >= 0.5 else "Moored / At Anchor"
+
+        # Persist to rolling trajectory buffer with kinematic downsampling
+        if getattr(self, "trajectory_buffer", None):
+            try:
+                self.trajectory_buffer.ingest_packet(
+                    mmsi=mmsi,
+                    name=name,
+                    imo=str(meta.get("IMO") or static_data.get("ImoNumber") or existing.get("imo") or "N/A"),
+                    flag="International",
+                    ship_type=v_type,
+                    is_tanker=is_tanker,
+                    lat=f_lat,
+                    lon=f_lon,
+                    sog=sog,
+                    cog=cog
+                )
+            except Exception as e:
+                logger.debug(f"[AISStream] Buffer ingest error: {e}")
 
         is_new = mmsi not in self._vessels
         self._vessels[mmsi] = {
