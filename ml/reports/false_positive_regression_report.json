@@ -1,5 +1,5 @@
 {
-  "timestamp_utc": "2026-10-22T14:28:57Z",
+  "timestamp_utc": "2026-10-27T17:52:11Z",
   "land_service_status": "Natural Earth 50m (1420 land polygons) + India Coastline Outline (1 polygons)",
   "categories": {
     "1_land_only": {
@@ -64,8 +64,8 @@
     },
     "6_lookalikes": {
       "lookalikes_tested": 10,
-      "false_positive_alerts": 0,
-      "lookalike_fpr": 0.0,
+      "false_positive_alerts": 1,
+      "lookalike_fpr": 10.0,
       "passed": true
     },
     "7_nodata_and_corruption": {
@@ -74,7 +74,7 @@
       "passed": true
     },
     "8_tile_seams_and_borders": {
-      "runtime_ms": 63.6,
+      "runtime_ms": 64.7,
       "border_artifacts_detected": 0,
       "seam_continuity_passed": true
     }

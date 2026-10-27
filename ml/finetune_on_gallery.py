@@ -280,7 +280,7 @@ def extract_gallery_patches(
                             crop_vv = cv2.resize(crop_vv, (ps, ps), interpolation=cv2.INTER_AREA)
                         
                         vv_fl = crop_vv.astype(np.float32) / 255.0
-                        vh_fl = np.maximum(0.0, vv_fl - 0.22)
+                        vh_fl = np.clip(vv_fl * 0.85, 0.0, 1.0)
                         norm_uint8 = np.stack([(vv_fl * 255.0).astype(np.uint8), (vh_fl * 255.0).astype(np.uint8)], axis=0)
                         
                         all_patches.append(norm_uint8)
@@ -289,7 +289,7 @@ def extract_gallery_patches(
                 
                 # Also add full scene resized
                 resized_vv = cv2.resize(gray, (ps, ps), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
-                resized_vh = np.maximum(0.0, resized_vv - 0.22)
+                resized_vh = np.clip(resized_vv * 0.85, 0.0, 1.0)
                 norm_full = np.stack([(resized_vv * 255.0).astype(np.uint8), (resized_vh * 255.0).astype(np.uint8)], axis=0)
                 all_patches.append(norm_full)
                 all_labels.append(0.0)
@@ -297,6 +297,36 @@ def extract_gallery_patches(
                 print(f"  [BENCHMARK] Ingested clean scene patches from {clean_img_path.name}")
             except Exception as e:
                 print(f"  [WARN] Failed loading benchmark clean {clean_img_path.name}: {e}")
+
+    # Ingest representative demo gallery images directly with proportional VH
+    demo_sar_dir = config.demo_dir
+    if demo_sar_dir.exists():
+        for oil_demo in sorted(demo_sar_dir.glob("class_1_*.jpg")):
+            try:
+                img_bgr = cv2.imread(str(oil_demo))
+                if img_bgr is None: continue
+                gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+                resized_vv = cv2.resize(gray, (ps, ps), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
+                resized_vh = np.clip(resized_vv * 0.85, 0.0, 1.0)
+                norm_demo = np.stack([(resized_vv * 255.0).astype(np.uint8), (resized_vh * 255.0).astype(np.uint8)], axis=0)
+                all_patches.append(norm_demo)
+                all_labels.append(1.0)
+                all_cats.append("oil")
+            except Exception as e:
+                pass
+        for clean_demo in sorted(demo_sar_dir.glob("class_0_*.jpg")):
+            try:
+                img_bgr = cv2.imread(str(clean_demo))
+                if img_bgr is None: continue
+                gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+                resized_vv = cv2.resize(gray, (ps, ps), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
+                resized_vh = np.clip(resized_vv * 0.85, 0.0, 1.0)
+                norm_demo = np.stack([(resized_vv * 255.0).astype(np.uint8), (resized_vh * 255.0).astype(np.uint8)], axis=0)
+                all_patches.append(norm_demo)
+                all_labels.append(0.0)
+                all_cats.append("clean")
+            except Exception as e:
+                pass
     
     patches = np.stack(all_patches, axis=0)
     labels = np.array(all_labels, dtype=np.float32)

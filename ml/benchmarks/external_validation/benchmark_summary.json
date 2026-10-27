@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-10-26T18:34:43.236364",
+  "models": {
+    "segmenter": {
+      "checkpoint": "best_segmenter_v3_exp1_lr1e4.pt",
+      "epoch": 29,
+      "params": 1593089,
+      "threshold": 0.5,
+      "reference_dice": 0.8750191416176756,
+      "reference_iou": 0.7778080267747103
+    },
+    "classifier": {
+      "checkpoint": "best_dualpol_classifier.pt",
+      "params": 317057,
+      "threshold": 0.48999999999999994
+    }
+  },
+  "datasets_evaluated": [
+    "A_SOS",
+    "D_Cantarell"
+  ],
+  "aggregates": {
+    "A_SOS": {
+      "micro_dice": 0.5055874902691433,
+      "micro_iou": 0.3383185612921559,
+      "micro_precision": 0.889033220214536,
+      "micro_recall": 0.3532349784785591,
+      "micro_fpr": 0.016348001766990302,
+      "macro_mean_dice": 0.4216692767502245,
+      "macro_median_dice": 0.5060935076445823,
+      "macro_mean_iou": 0.3380005735152482,
+      "macro_median_iou": 0.33877187778107387,
+      "macro_std_dice": 0.3609240504204771,
+      "total_tp": 10112808,
+      "total_fp": 1262254,
+      "total_fn": 18516316,
+      "total_tn": 75949262,
+      "total_oil_pixels": 28629124,
+      "total_pixels": 105840640,
+      "dataset": "A_SOS",
+      "evaluation_type": "adapted (single-pol to dual-pol synthesis)",
+      "num_scenes": 1615
+    },
+    "D_Cantarell": {
+      "micro_dice": 0.09762154709915091,
+      "micro_iou": 0.051315523969635124,
+      "micro_precision": 0.05184974471267805,
+      "micro_recall": 0.8327904451682954,
+      "micro_fpr": 0.16785437834344594,
+      "macro_mean_dice": 0.1684868796524346,
+      "macro_median_dice": 0.060533886367266934,
+      "macro_mean_iou": 0.11486775647996762,
+      "macro_median_iou": 0.0316714571187753,
+      "macro_std_dice": 0.23028067423188261,
+      "total_tp": 95875,
+      "total_fp": 1753218,
+      "total_fn": 19250,
+      "total_tn": 8691657,
+      "total_oil_pixels": 115125,
+      "total_pixels": 10560000,
+      "dataset": "D_Cantarell (test_split, 22 tiles)",
+      "evaluation_type": "adapted (RGB-SAR to dual-pol synthesis)",
+      "num_scenes": 22
+    }
+  },
+  "latency": {
+    "segmenter_gpu_ms": {
+      "mean": 24.91030999990471,
+      "std": 1.9260292792461335,
+      "min": 23.323299999901792,
+      "max": 30.396400001336588
+    },
+    "segmenter_cpu_ms": {
+      "mean": 294.2866100001993,
+      "std": 2.6797634120933513
+    },
+    "classifier_gpu_ms": {
+      "mean": 6.100860000333341,
+      "std": 0.41286647160260737
+    },
+    "segmenter_onnx_cpu_ms": {
+      "mean": 154.94647000050463,
+      "std": 13.097852691782188
+    },
+    "model_sizes": {
+      "segmenter_pt": 6.18787956237793,
+      "classifier_pt": 1.2726268768310547,
+      "segmenter_onnx": 6.072937965393066,
+      "classifier_onnx": 1.232314109802246
+    },
+    "segmenter_peak_gpu_mb": 304.03125
+  }
+}

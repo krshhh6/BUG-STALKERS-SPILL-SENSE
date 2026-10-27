@@ -193,7 +193,7 @@ class TiledSARInferenceEngine:
 
         # Authoritative Classifier Gating: screen out ship wakes and look-alikes
         cls_prob = self.run_classifier_gate(vv_db, vh_db, computed_sea_mask)
-        if cls_prob < 0.20:
+        if cls_prob < 0.08:
             return {
                 "status": "no_oil_detected",
                 "polygons": [],

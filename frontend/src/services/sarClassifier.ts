@@ -1292,7 +1292,8 @@ function scanCapillaryWaveDamping(
       const lum = 0.299 * r + 0.587 * g + 0.114 * b;
       // Pad synthetic dark borders (< 12 DN) with ambient sea so global pooling is not degraded
       const vv = lum < 12 ? ambNormalized : lum / 255.0;
-      const vh = Math.max(0.0, vv - 0.22);
+      // Proportional cross-polarization scaling: realistic physical SAR VH is ~0.85 of VV backscatter
+      const vh = vv * 0.85;
       tensorData[i] = vv;
       tensorData[numPixels + i] = vh;
     }
@@ -1373,10 +1374,20 @@ function scanCapillaryWaveDamping(
         areaPercent: fallbackMask.areaPercent,
       };
     }
-  } else if (uNetConfirmedSlick && physicsConfirmed && clsProb >= 0.40) {
-    // Spatial segmenter detected a localized slick supported by physics and near-threshold classifier
+  } else if (uNetConfirmedSlick && physicsConfirmed) {
+    // Spatial segmenter detected a verified slick supported by physical capillary wave damping
+    // (Prevents false negatives when global pooling in classifier is diluted by coastal margins or patch boundaries)
     isOil = true;
-    finalConfidence = +(0.50 + 0.30 * clsProb + 0.20 * Math.min(1.0, (segMaskRes?.spillPixels || 0) / 2000)).toFixed(3);
+    const segFactor = Math.min(1.0, 0.50 + (segMaskRes?.spillPixels || 0) / 2500);
+    finalConfidence = +(0.55 + 0.25 * segFactor + 0.20 * Math.max(clsProb, 0.40)).toFixed(3);
+  } else if (uNetConfirmedSlick && (segMaskRes?.spillPixels || 0) >= 1500) {
+    // Large, clear slick segmenter detection with confirmed core damping
+    isOil = true;
+    finalConfidence = +(0.65 + 0.25 * Math.min(1.0, (segMaskRes?.spillPixels || 0) / 5000)).toFixed(3);
+  } else if (physicsConfirmed && clsProb >= 0.38 && segMaskRes?.hasCore) {
+    // Capillary wave damping with supporting classifier probability and core presence
+    isOil = true;
+    finalConfidence = +(0.55 + 0.35 * clsProb).toFixed(3);
   } else {
     // Clean ocean / Non-oil (genuine calibrated confidence)
     isOil = false;
@@ -1543,10 +1554,10 @@ async function runSegmentation(
       if (gray < 12 || borderMask[i] === 1) {
         // Synthetic black border / letterbox padding: pad with ambient ocean
         tensorData[i] = ambNormalized;
-        tensorData[numPixels + i] = Math.max(0.0, ambNormalized - 0.22);
+        tensorData[numPixels + i] = ambNormalized * 0.85;
       } else {
         const vv = gray / 255.0;
-        const vh = Math.max(0.0, vv - 0.22);
+        const vh = vv * 0.85;
         tensorData[i] = vv;
         tensorData[numPixels + i] = vh;
       }

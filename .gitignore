@@ -38,6 +38,7 @@ Thumbs.db
 *.npz
 ml/cache_patches/
 ml/weights/
+ml/benchmarks/external_validation/datasets/
 
 # Root junctions for standalone static dashboard
 /demo-sar
