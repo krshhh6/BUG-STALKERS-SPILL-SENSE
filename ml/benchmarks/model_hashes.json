@@ -1,0 +1,22 @@
+{
+  "ml/checkpoints/best_segmenter_v3_exp1_lr1e4.pt": {
+    "sha256": "38dd8341c2cd0d1dd0ddb5082130c96b675cd991f8fb692e7b206d1831b3584d",
+    "size_bytes": 6488462
+  },
+  "ml/checkpoints/best_classifier_v3_finetuned.pt": {
+    "sha256": "7d571fdd5a3c5fe398e3601b567bc1f9bf3d029b046b80c7a8aebdb479dc5f85",
+    "size_bytes": 1334812
+  },
+  "frontend/public/models/oil_segmenter.onnx": {
+    "sha256": "d464e6cef8dc47b7afdd0e7f0ae1068ae92798df3154004bb771b7ed317d4a0e",
+    "size_bytes": 6367937
+  },
+  "frontend/public/models/oil_classifier.onnx": {
+    "sha256": "35cd00b5621d79aa3f226e48607d46b317da9137ef4116b802bd1557a68bf1a1",
+    "size_bytes": 1292175
+  },
+  "frontend/public/models/model_metadata.json": {
+    "sha256": "03e0da70ccf855f0ba8f84a9ff715763853b06900e7866dcb8256db8c150c55a",
+    "size_bytes": 560
+  }
+}

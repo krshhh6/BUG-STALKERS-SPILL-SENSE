@@ -208,7 +208,8 @@ class EnvironmentalService:
             u_wind_ms=round(u_wind, 3),
             v_wind_ms=round(v_wind, 3),
             wave_height_m=round(wave_h, 2),
-            wave_direction_deg=round(wave_dir, 1)
+            wave_direction_deg=round(wave_dir, 1),
+            source="LIVE_OPEN_METEO_MERCATOR_ECMWF"
         )
 
     @classmethod
@@ -275,7 +276,8 @@ class EnvironmentalService:
             u_wind_ms=round(interp_u_wind, 3),
             v_wind_ms=round(interp_v_wind, 3),
             wave_height_m=round(interp_wave_h, 2),
-            wave_direction_deg=round(math.degrees(math.atan2(interp_u_curr, interp_v_curr)) % 360.0, 1)
+            wave_direction_deg=round(math.degrees(math.atan2(interp_u_curr, interp_v_curr)) % 360.0, 1),
+            source="CALIBRATED_INDIAN_EEZ_CLIMATOLOGY"
         )
 
     # ── BACKWARD COMPATIBILITY INTERFACES ──

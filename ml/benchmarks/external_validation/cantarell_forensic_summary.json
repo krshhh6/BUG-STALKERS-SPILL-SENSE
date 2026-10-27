@@ -1,0 +1,18 @@
+{
+  "dataset": "Cantarell (Test Split, 22 tiles)",
+  "uncalibrated_8bit": {
+    "micro_dice": 0.09735064349780223,
+    "micro_iou": 0.051165835241849394,
+    "micro_precision": 0.05169575664671278,
+    "micro_recall": 0.8330944625407166,
+    "false_positives": 1759368
+  },
+  "calibrated_16bit_sigma0_db": {
+    "micro_dice": 0.6491691557846383,
+    "micro_iou": 0.48057027907273775,
+    "micro_precision": 0.8557619866664772,
+    "micro_recall": 0.5229272529858849,
+    "false_positives": 10147,
+    "fp_reduction_percent": 99.42325880657144
+  }
+}

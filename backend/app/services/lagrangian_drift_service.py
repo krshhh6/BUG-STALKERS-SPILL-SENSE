@@ -47,6 +47,7 @@ class ForcingVector:
     v_wind_ms: float = 0.0         # Northward 10m wind (m/s)
     wave_height_m: float = 1.0     # Significant wave height (m)
     wave_direction_deg: float = 0.0 # Direction waves are traveling towards
+    source: str = "REAL_TIME_METOCEAN" # Provenance: REAL_TIME_METOCEAN | CALIBRATED_EEZ_CLIMATOLOGY | SIMULATED_ANALYTICAL
 
 
 @dataclass
@@ -428,7 +429,8 @@ class LagrangianDriftService:
                 "eddy_diffusivity_kh": kh,
                 "windage_leeway_factor": config.windage_leeway_factor,
                 "coriolis_deflection_applied": config.enable_coriolis_deflection,
-                "stokes_drift_applied": config.enable_stokes_drift
+                "stokes_drift_applied": config.enable_stokes_drift,
+                "forcing_source": getattr(f1, "source", "REAL_TIME_METOCEAN") if "f1" in locals() else "REAL_TIME_METOCEAN"
             }
         )
 
