@@ -374,6 +374,17 @@ interface LayerDataSources {
   incidentDS: Cesium.CustomDataSource;
 }
 
+// ─── Macro Indian Ocean C2 Overview Viewport (Default Starting Position) ────
+// Frames the complete Earth sphere against space with India and EEZ centered
+const MACRO_HOME_DESTINATION = {
+  lng: 78.5,
+  lat: 20.0,
+  altitude: 18_500_000,
+  headingDeg: 0,
+  pitchDeg: -89.9, // Near-nadir prevents gimbal singularity while staying orthogonal
+  roll: 0,
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const GlobeView: React.FC<GlobeViewProps> = ({
   currentScenario,
@@ -389,6 +400,8 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
   const currentBasemapRef = useRef<BasemapId>('satellite');
   const orbitRAFRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(0);
+  const cameraListenerRemoverRef = useRef<Cesium.Event.RemoveCallback | null>(null);
+  const compassNeedleRef = useRef<HTMLDivElement>(null);
 
   // HUD direct DOM refs (eliminates 60fps React re-renders on mousemove)
   const cursorHudRef = useRef<HTMLSpanElement>(null);
@@ -514,7 +527,7 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
           selectionIndicator: false,
           shadows: false,
           requestRenderMode: false,
-          msaaSamples: 4,
+          msaaSamples: 2,
           contextOptions: {
             webgl: {
               preserveDrawingBuffer: true,
@@ -524,12 +537,17 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
           },
         });
 
+        // High-DPI Resolution scaling cap (prevents Retina / 4K GPU fragment fill-rate stutter)
+        viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, 1.25);
+
         // Atmosphere & Photorealistic Visual Settings
         viewer.scene.globe.show = true;
         viewer.scene.globe.enableLighting = false; // Daylight satellite illumination
         viewer.scene.globe.showGroundAtmosphere = true;
         viewer.scene.globe.baseColor = C.Color.fromCssColorString('#0b1528');
-        viewer.scene.globe.maximumScreenSpaceError = 1.5;
+        viewer.scene.globe.maximumScreenSpaceError = 2.0; // Optimized LOD balance
+        viewer.scene.globe.tileCacheSize = 500;
+        viewer.scene.globe.loadingDescendantLimit = 20;
 
         // Cesium World Terrain with water reflections
         try {
@@ -556,18 +574,24 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
         viewer.scene.fog.density = 0.0001;
         viewer.scene.fog.screenSpaceErrorFactor = 2.0;
 
-        // Google Earth-style smooth camera inertia controls
+        // Tactical C2 Navigation & Camera Ergonomics
         const ssc = viewer.scene.screenSpaceCameraController;
         ssc.enableRotate = true;
         ssc.enableTranslate = true;
         ssc.enableZoom = true;
         ssc.enableTilt = true;
-        ssc.enableLook = false;
-        ssc.inertiaSpin = 0.85;
-        ssc.inertiaTranslate = 0.85;
-        ssc.inertiaZoom = 0.8;
+        ssc.enableLook = false; // Disables disorienting first-person free-look
+
+        // Immediate tactile stopping — eliminates slippery globe sliding
+        ssc.inertiaSpin = 0.05;
+        ssc.inertiaTranslate = 0.05;
+        ssc.inertiaZoom = 0.08;
         ssc.minimumZoomDistance = 1500;
         ssc.maximumZoomDistance = 25_000_000;
+        ssc.enableCollisionDetection = true;
+
+        // Constrain roll axis to ensure True North orientation is preserved
+        viewer.camera.constrainedAxis = C.Cartesian3.UNIT_Z;
 
         // Hide default Cesium credit watermark
         const credit = viewer.cesiumWidget.creditContainer as HTMLElement;
@@ -615,10 +639,15 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
 
         layerSourcesRef.current = { slickDS, driftDS, vesselDS, liveVesselDS, swathDS, sarDS, incidentDS };
 
-        // Mouse Move Listener — Uses pickEllipsoid (pure math, no worker crashes, no React re-renders)
+        // Mouse Move Listener — Throttled to ~25fps via DOM refs (zero React re-renders)
+        let lastMoveTime = 0;
         const handler = new C.ScreenSpaceEventHandler(viewer.scene.canvas);
         handler.setInputAction((movement: { endPosition: Cesium.Cartesian2 }) => {
           if (!mounted) return;
+          const now = performance.now();
+          if (now - lastMoveTime < 40) return;
+          lastMoveTime = now;
+
           const cartesian = viewer.camera.pickEllipsoid(
             movement.endPosition,
             viewer.scene.globe.ellipsoid
@@ -657,18 +686,38 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
           setSelectedVessel(null);
         }, C.ScreenSpaceEventType.LEFT_CLICK);
 
+        // Live compass heading tracker (direct DOM transform, zero React re-renders)
+        const cameraListenerRemover = viewer.camera.changed.addEventListener(() => {
+          if (compassNeedleRef.current && viewerRef.current && !viewerRef.current.isDestroyed()) {
+            const headingDeg = C.Math.toDegrees(viewerRef.current.camera.heading);
+            compassNeedleRef.current.style.transform = `rotate(${-headingDeg}deg)`;
+          }
+        });
+        cameraListenerRemoverRef.current = cameraListenerRemover;
+
         viewerRef.current = viewer;
 
-        // Set initial camera view to Regional Indian EEZ Maritime Overview (National Macro Perspective)
-        // NOT pre-origin focused on an individual oil spill
+        // Set initial camera view: Full spherical Earth centered on Indian Ocean & EEZ (starting position)
         viewer.camera.setView({
-          destination: C.Cartesian3.fromDegrees(78.5, 12.0, 3_800_000),
+          destination: C.Cartesian3.fromDegrees(
+            MACRO_HOME_DESTINATION.lng,
+            MACRO_HOME_DESTINATION.lat,
+            MACRO_HOME_DESTINATION.altitude
+          ),
           orientation: {
-            heading: C.Math.toRadians(0),
-            pitch: C.Math.toRadians(-75),
-            roll: 0,
+            heading: C.Math.toRadians(MACRO_HOME_DESTINATION.headingDeg),
+            pitch: C.Math.toRadians(MACRO_HOME_DESTINATION.pitchDeg),
+            roll: MACRO_HOME_DESTINATION.roll,
           },
         });
+
+        // Initialize HUD telemetry immediately
+        if (altHudRef.current) {
+          altHudRef.current.innerText = `${Math.round(MACRO_HOME_DESTINATION.altitude / 1000)} km`;
+        }
+        if (cursorHudRef.current) {
+          cursorHudRef.current.innerText = `${MACRO_HOME_DESTINATION.lat.toFixed(3)}°N, ${MACRO_HOME_DESTINATION.lng.toFixed(3)}°E`;
+        }
 
         setCesiumReady(true);
         setStatus('ready');
@@ -683,6 +732,10 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
       if (orbitRAFRef.current !== null) {
         cancelAnimationFrame(orbitRAFRef.current);
         orbitRAFRef.current = null;
+      }
+      if (cameraListenerRemoverRef.current) {
+        cameraListenerRemoverRef.current();
+        cameraListenerRemoverRef.current = null;
       }
       if (viewerRef.current && !viewerRef.current.isDestroyed()) {
         viewerRef.current.destroy();
@@ -777,7 +830,7 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
             pixelOffset: new C.Cartesian2(0, -16),
             eyeOffset: C.Cartesian3.ZERO,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            distanceDisplayCondition: new C.DistanceDisplayCondition(0, 15_000_000),
+            distanceDisplayCondition: new C.DistanceDisplayCondition(0, 25_000_000),
           },
           properties: new C.PropertyBag({
             incidentKey: inc.id,
@@ -879,7 +932,7 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
         pixelOffset: new C.Cartesian2(0, -20),
         eyeOffset: C.Cartesian3.ZERO,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        distanceDisplayCondition: new C.DistanceDisplayCondition(0, 15_000_000),
+        distanceDisplayCondition: new C.DistanceDisplayCondition(0, 25_000_000),
       },
       properties: new C.PropertyBag({
         incidentKey: activeScenarioKey,
@@ -1212,7 +1265,7 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
           pixelOffset: new C.Cartesian2(0, -14),
           eyeOffset: C.Cartesian3.ZERO,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          distanceDisplayCondition: new C.DistanceDisplayCondition(0, 15_000_000),
+          distanceDisplayCondition: new C.DistanceDisplayCondition(0, 25_000_000),
         },
         properties: new C.PropertyBag({
           incidentKey: inc.id,
@@ -1392,13 +1445,17 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
 
       if (preset === 'eez') {
         viewer.camera.flyTo({
-          destination: C.Cartesian3.fromDegrees(78.5, 12.0, 3_800_000),
+          destination: C.Cartesian3.fromDegrees(
+            MACRO_HOME_DESTINATION.lng,
+            MACRO_HOME_DESTINATION.lat,
+            MACRO_HOME_DESTINATION.altitude
+          ),
           orientation: {
-            heading: C.Math.toRadians(0),
-            pitch: C.Math.toRadians(-75),
-            roll: 0,
+            heading: C.Math.toRadians(MACRO_HOME_DESTINATION.headingDeg),
+            pitch: C.Math.toRadians(MACRO_HOME_DESTINATION.pitchDeg),
+            roll: MACRO_HOME_DESTINATION.roll,
           },
-          duration: 2.2,
+          duration: 1.8,
         });
         return;
       }
@@ -1439,6 +1496,66 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
     },
     [cesiumReady, activeScenario, activeScenarioKey, scenarios]
   );
+
+  // ── Tactical Navigation Actions (Snappy, Precise Ergonomic Controls) ───────
+  const handleResetNorth = useCallback(() => {
+    if (!viewerRef.current) return;
+    const v = viewerRef.current;
+    v.camera.flyTo({
+      destination: v.camera.positionWC,
+      orientation: {
+        heading: 0,
+        pitch: v.camera.pitch,
+        roll: 0,
+      },
+      duration: 0.8,
+    });
+  }, []);
+
+  const handleZoomIn = useCallback(() => {
+    if (!viewerRef.current) return;
+    const h = viewerRef.current.camera.positionCartographic.height;
+    viewerRef.current.camera.zoomIn(Math.max(h * 0.35, 1200));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    if (!viewerRef.current) return;
+    const h = viewerRef.current.camera.positionCartographic.height;
+    viewerRef.current.camera.zoomOut(Math.max(h * 0.35, 1200));
+  }, []);
+
+  const handleToggleTilt = useCallback(() => {
+    if (!viewerRef.current) return;
+    const v = viewerRef.current;
+    const currentPitchDeg = Cesium.Math.toDegrees(v.camera.pitch);
+    const isNearNadir = currentPitchDeg < -70;
+    v.camera.flyTo({
+      destination: v.camera.positionWC,
+      orientation: {
+        heading: v.camera.heading,
+        pitch: Cesium.Math.toRadians(isNearNadir ? -45 : -89.9),
+        roll: 0,
+      },
+      duration: 0.9,
+    });
+  }, []);
+
+  const handleRecenterHome = useCallback(() => {
+    if (!viewerRef.current) return;
+    viewerRef.current.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(
+        MACRO_HOME_DESTINATION.lng,
+        MACRO_HOME_DESTINATION.lat,
+        MACRO_HOME_DESTINATION.altitude
+      ),
+      orientation: {
+        heading: Cesium.Math.toRadians(MACRO_HOME_DESTINATION.headingDeg),
+        pitch: Cesium.Math.toRadians(MACRO_HOME_DESTINATION.pitchDeg),
+        roll: MACRO_HOME_DESTINATION.roll,
+      },
+      duration: 1.8,
+    });
+  }, []);
 
   return (
     <div
@@ -1596,13 +1713,17 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
                     setActiveScenarioKey('');
                     if (viewerRef.current) {
                       viewerRef.current.camera.flyTo({
-                        destination: Cesium.Cartesian3.fromDegrees(78.5, 12.0, 3_800_000),
+                        destination: Cesium.Cartesian3.fromDegrees(
+                          MACRO_HOME_DESTINATION.lng,
+                          MACRO_HOME_DESTINATION.lat,
+                          MACRO_HOME_DESTINATION.altitude
+                        ),
                         orientation: {
-                          heading: Cesium.Math.toRadians(0),
-                          pitch: Cesium.Math.toRadians(-75),
-                          roll: 0,
+                          heading: Cesium.Math.toRadians(MACRO_HOME_DESTINATION.headingDeg),
+                          pitch: Cesium.Math.toRadians(MACRO_HOME_DESTINATION.pitchDeg),
+                          roll: MACRO_HOME_DESTINATION.roll,
                         },
-                        duration: 2.0,
+                        duration: 1.8,
                       });
                     }
                   }
@@ -2093,6 +2214,182 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
           </button>
         </div>
       )}
+
+      {/* ── FLOATING TACTICAL NAVIGATION DOCK (RIGHT) ─────────────────────── */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 138,
+          right: 20,
+          zIndex: 35,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 6,
+          padding: '8px 6px',
+          background: 'rgba(10, 16, 32, 0.82)',
+          backdropFilter: 'blur(20px) saturate(190%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(190%)',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          borderRadius: 12,
+          boxShadow: '0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+        }}
+      >
+        {/* Compass / Reset North Up */}
+        <button
+          onClick={handleResetNorth}
+          title="Reset Heading to North (0°)"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: '50%',
+            background: 'rgba(15, 23, 42, 0.9)',
+            border: '1px solid rgba(56, 189, 248, 0.4)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
+          }}
+        >
+          <div
+            ref={compassNeedleRef}
+            style={{
+              width: 4,
+              height: 22,
+              position: 'relative',
+              transition: 'transform 0.1s linear',
+              transformOrigin: '50% 50%',
+            }}
+          >
+            {/* North Indicator (Red Needle) */}
+            <div
+              style={{
+                width: 0,
+                height: 0,
+                borderLeft: '3.5px solid transparent',
+                borderRight: '3.5px solid transparent',
+                borderBottom: '11px solid #ef4444',
+                position: 'absolute',
+                top: 0,
+                left: -1.5,
+              }}
+            />
+            {/* South Indicator (Muted Silver) */}
+            <div
+              style={{
+                width: 0,
+                height: 0,
+                borderLeft: '3.5px solid transparent',
+                borderRight: '3.5px solid transparent',
+                borderTop: '11px solid #94a3b8',
+                position: 'absolute',
+                bottom: 0,
+                left: -1.5,
+              }}
+            />
+          </div>
+        </button>
+
+        <div style={{ width: 26, height: 1, background: 'rgba(255, 255, 255, 0.12)', margin: '2px 0' }} />
+
+        {/* Zoom In (+35%) */}
+        <button
+          onClick={handleZoomIn}
+          title="Zoom In (+35%)"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: 'rgba(30, 41, 59, 0.75)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            color: '#38bdf8',
+            fontSize: 18,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background 0.15s ease',
+          }}
+        >
+          +
+        </button>
+
+        {/* Zoom Out (-35%) */}
+        <button
+          onClick={handleZoomOut}
+          title="Zoom Out (-35%)"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: 'rgba(30, 41, 59, 0.75)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            color: '#38bdf8',
+            fontSize: 18,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background 0.15s ease',
+          }}
+        >
+          −
+        </button>
+
+        <div style={{ width: 26, height: 1, background: 'rgba(255, 255, 255, 0.12)', margin: '2px 0' }} />
+
+        {/* 3D / 2D Tactical Pitch Toggle */}
+        <button
+          onClick={handleToggleTilt}
+          title="Toggle 2D Nadir (Top-Down) / 3D Tactical Oblique Pitch"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: 'rgba(30, 41, 59, 0.75)',
+            border: '1px solid rgba(168, 85, 247, 0.4)',
+            color: '#c084fc',
+            fontSize: 11,
+            fontWeight: 800,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            letterSpacing: '0.04em',
+            transition: 'background 0.15s ease',
+          }}
+        >
+          3D
+        </button>
+
+        <div style={{ width: 26, height: 1, background: 'rgba(255, 255, 255, 0.12)', margin: '2px 0' }} />
+
+        {/* Recenter Home (Indian Ocean Macro Starting View) */}
+        <button
+          onClick={handleRecenterHome}
+          title="Recenter Indian Ocean & EEZ (Starting Macro View)"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: 'rgba(30, 41, 59, 0.75)',
+            border: '1px solid rgba(6, 182, 212, 0.4)',
+            color: '#22d3ee',
+            fontSize: 15,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background 0.15s ease',
+          }}
+        >
+          🇮🇳
+        </button>
+      </div>
 
       {/* ── FLOATING GLASS TELEMETRY DOCK (BOTTOM) ───────────────────────────── */}
       <div
